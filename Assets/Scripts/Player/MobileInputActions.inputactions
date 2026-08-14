@@ -19,8 +19,8 @@
             "bindings": [
                 {
                     "name": "",
-                    "id": "a9db223e-7337-4f8e-b324-3ac0a3482b34",
-                    "path": "<Touchscreen>/touch1/tap",
+                    "id": "6d8599f9-8262-4910-8f99-dd23b16bf160",
+                    "path": "<Mouse>/leftButton",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -30,8 +30,8 @@
                 },
                 {
                     "name": "",
-                    "id": "6d8599f9-8262-4910-8f99-dd23b16bf160",
-                    "path": "<Mouse>/leftButton",
+                    "id": "c08621b4-94ee-4db6-8282-f6f6da613a67",
+                    "path": "<Pointer>/press",
                     "interactions": "",
                     "processors": "",
                     "groups": "",

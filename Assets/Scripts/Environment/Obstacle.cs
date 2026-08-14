@@ -1,42 +1,57 @@
 using UnityEngine;
 
 /// <summary>
-/// Controla a detecção de colisão dos obstáculos mortais com o jogador.
+/// Controla a colisão de obstáculos e inimigos com o jogador.
 /// </summary>
 public class Obstacle : MonoBehaviour
 {
-    [Header("Configurações do Obstáculo")]
-    [Tooltip("Tag atribuída ao GameObject do jogador para confirmar a colisão.")]
+    [Header("Configurações de Colisão")]
+    [Tooltip("Tag do jogador.")]
     [SerializeField] private string playerTag = "Player";
 
-    /// <summary>
-    /// Método disparado pela Unity quando outro objeto colide fisicamente com este obstáculo.
-    /// </summary>
-    /// <param name="collision">Dados referentes à colisão 2D.</param>
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // Verifica se o objeto que colidiu tem a tag de jogador
         if (collision.gameObject.CompareTag(playerTag))
         {
-            TriggerGameOver();
+            HandlePlayerCollision(collision.gameObject);
         }
     }
 
-    /// <summary>
-    /// Método alternativo caso o colisor do obstáculo esteja marcado como 'Is Trigger'.
-    /// </summary>
-    /// <param name="other">O colisor 2D que entrou na área do trigger.</param>
     private void OnTriggerEnter2D(Collider2D other)
     {
         if (other.CompareTag(playerTag))
         {
+            HandlePlayerCollision(other.gameObject);
+        }
+    }
+
+    private void HandlePlayerCollision(GameObject playerObj)
+    {
+        PlayerController player = playerObj.GetComponent<PlayerController>();
+
+        // Se o jogador estiver em Ground Pound, causa dano/destrói o inimigo
+        if (player != null && player.IsGroundPounding)
+        {
+            player.Bounce();
+
+            // Se o inimigo tiver o script Health, aplica dano fatal
+            Health health = GetComponent<Health>();
+            if (health != null)
+            {
+                health.TakeDamage(999);
+            }
+            else
+            {
+                gameObject.SetActive(false);
+            }
+        }
+        else
+        {
+            // Caso contrário, o jogador morre
             TriggerGameOver();
         }
     }
 
-    /// <summary>
-    /// Aciona o evento de Game Over no gerenciador principal do jogo.
-    /// </summary>
     private void TriggerGameOver()
     {
         if (GameManager.Instance != null)

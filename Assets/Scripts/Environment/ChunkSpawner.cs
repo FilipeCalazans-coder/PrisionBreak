@@ -1,34 +1,44 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Garante o encaixe milimétrico dos blocos sem lacunas.
+/// Gerencia a criação procedural de Chunks, garantindo um bloco inicial seguro
+/// e a integração contínua com o BiomeManager.
 /// </summary>
 public class ChunkSpawner : MonoBehaviour
 {
     [Header("Referências Principais")]
+    [Tooltip("Transform do jogador para monitorar a posição de avanço.")]
     [SerializeField] private Transform playerTransform;
-    [SerializeField] private string startingChunkTag = "StartingChunk";
-    [SerializeField] private List<string> chunkTags;
 
-    [Header("Configurações de Encaixe")]
-    [Tooltip("Largura exata do bloco no eixo X.")]
+    [Header("Configuração do Bloco Inicial")]
+    [Tooltip("Tag no ObjectPooler correspondente ao Chunk inicial seguro (sem obstáculos/buracos).")]
+    [SerializeField] private string startingChunkTag = "StartingChunk";
+
+    [Header("Configurações de Encaixe e Tamanho")]
+    [Tooltip("Largura exata de cada bloco (Chunk) no eixo X.")]
     [SerializeField] private float chunkWidth = 20f;
+
+    [Tooltip("Quantidade de blocos visíveis na tela simultaneamente.")]
     [SerializeField] private int initialChunksCount = 5;
+
+    [Tooltip("Distância à frente do jogador para acionar a criação do próximo bloco.")]
     [SerializeField] private float spawnDistanceThreshold = 30f;
 
-    // Guarda a posição exata sem acúmulo de erros de arredondamento
+    // Posição matemática exata onde o próximo bloco deve ser colocado
     private Vector3 nextSpawnPosition = Vector3.zero;
+
+    // Fila para gerenciar os blocos ativos na cena e permitir reciclagem
     private Queue<GameObject> activeChunks = new Queue<GameObject>();
 
     private void Start()
     {
-        // Define a posição inicial zerada para o primeiro bloco
         nextSpawnPosition = Vector3.zero;
 
-        SpawnChunk(startingChunkTag);
+        // 1. Gera obrigatoriamente o bloco inicial seguro no ponto zero
+        SpawnSpecificChunk(startingChunkTag);
 
+        // 2. Preenche o restante da tela com blocos aleatórios do bioma ativo
         for (int i = 1; i < initialChunksCount; i++)
         {
             SpawnRandomChunk();
@@ -39,7 +49,7 @@ public class ChunkSpawner : MonoBehaviour
     {
         if (playerTransform == null) return;
 
-        // Compara a distância horizontal contínua
+        // Se o jogador estiver próximo da ponta do caminho gerado, instancia o próximo bloco
         if (nextSpawnPosition.x - playerTransform.position.x < spawnDistanceThreshold)
         {
             SpawnRandomChunk();
@@ -47,26 +57,44 @@ public class ChunkSpawner : MonoBehaviour
         }
     }
 
-    private void SpawnRandomChunk()
+    /// <summary>
+    /// Instancia um Chunk específico informando a sua tag cadastrada no ObjectPooler.
+    /// Usado para o Chunk inicial seguro.
+    /// </summary>
+    /// <param name="chunkTag">Tag do bloco no ObjectPooler.</param>
+    private void SpawnSpecificChunk(string chunkTag)
     {
-        if (chunkTags == null || chunkTags.Count == 0) return;
-        int randomIndex = Random.Range(0, chunkTags.Count);
-        SpawnChunk(chunkTags[randomIndex]);
-    }
-
-    private void SpawnChunk(string chunkTag)
-    {
-        // Instancia na posição calculada exata
         GameObject newChunk = ObjectPooler.Instance.SpawnFromPool(chunkTag, nextSpawnPosition, Quaternion.identity);
 
         if (newChunk == null) return;
 
         activeChunks.Enqueue(newChunk);
-
-        // Soma exatamente a largura do bloco para o próximo spawn
         nextSpawnPosition.x += chunkWidth;
     }
 
+    /// <summary>
+    /// Consulta o BiomeManager, sorteia um Chunk do cenário atual e posiciona na cena.
+    /// </summary>
+    private void SpawnRandomChunk()
+    {
+        List<string> currentGroundTags = null;
+
+        if (BiomeManager.Instance != null)
+        {
+            currentGroundTags = BiomeManager.Instance.GetCurrentGroundChunkTags();
+        }
+
+        if (currentGroundTags == null || currentGroundTags.Count == 0) return;
+
+        int randomIndex = Random.Range(0, currentGroundTags.Count);
+        string selectedTag = currentGroundTags[randomIndex];
+
+        SpawnSpecificChunk(selectedTag);
+    }
+
+    /// <summary>
+    /// Desativa o bloco mais antigo que ficou para trás para reuso no ObjectPooler.
+    /// </summary>
     private void RecycleOldestChunk()
     {
         if (activeChunks.Count > initialChunksCount)
