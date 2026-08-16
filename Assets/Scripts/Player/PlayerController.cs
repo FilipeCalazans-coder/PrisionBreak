@@ -2,10 +2,11 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
+using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 /// <summary>
 /// Controla a movimentação do jogador (corrida, pulo, slide, ataque e ground pound)
-/// com diagnóstico completo via Logs no Console da Unity.
+/// tratando corretamente o ciclo de vida do toque (pressionar, arrastar e soltar).
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CapsuleCollider2D))]
@@ -33,7 +34,7 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Tempo em segundos que o personagem permanece agachado e acelerado.")]
     [SerializeField] private float slideDuration = 0.8f;
 
-    [Tooltip("Velocidade extra adicionada ao movimento horizontal EXCLUSIVAMENTE durante o Slide.")]
+    [Tooltip("Velocidade extra adicionada horizontalmente durante o Slide.")]
     [SerializeField] private float dashBonusSpeed = 5f;
 
     [Header("Configurações de Ground Pound")]
@@ -45,7 +46,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Configurações de Swipe (Sensibilidade)")]
     [Tooltip("Distância mínima em pixels para considerar um gesto de deslize.")]
-    [SerializeField] private float minSwipeDistance = 30f; // Reduzido ligeiramente para facilitar a detecção no simulador
+    [SerializeField] private float minSwipeDistance = 30f;
 
     [Header("Verificação de Chão")]
     [Tooltip("Ponto de onde será feito o raio de detecção do chão.")]
@@ -57,9 +58,11 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Camada (Layer) correspondente ao chão.")]
     [SerializeField] private LayerMask groundLayer;
 
-    // Componentes e variáveis internas
+    // Componentes internos
     private Rigidbody2D rb;
     private CapsuleCollider2D capsuleCollider;
+
+    // Estados de movimento
     private bool isGrounded;
     private bool jumpRequested;
     private bool isSliding;
@@ -68,14 +71,13 @@ public class PlayerController : MonoBehaviour
 
     public bool IsGroundPounding => isGroundPounding;
 
+    // Variáveis de controle de toque e gestos
     private float lastAirTapTime = 0f;
     private Vector2 originalColliderSize;
     private Vector2 originalColliderOffset;
-
-    // Variáveis de controle de entrada
     private Vector2 startTouchPos;
     private Vector2 currentTouchPos;
-    private bool isHoldingTouch;
+    private bool isTouching;
 
     private void Awake()
     {
@@ -103,7 +105,7 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            Debug.LogError("[PlayerController] ALERTA: AttackHitboxObject NÃO foi encontrado no Player!");
+            Debug.LogWarning("[PlayerController] AttackHitboxObject não foi atribuído no Inspector!");
         }
     }
 
@@ -119,6 +121,7 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        // 1. Verificação de Chão
         if (groundCheck != null)
         {
             bool wasGrounded = isGrounded;
@@ -130,19 +133,13 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // Atualiza a posição do ponteiro enquanto ele estiver pressionado
-        if (isHoldingTouch)
-        {
-            Vector2 pos = GetInputPosition();
-            if (pos != Vector2.zero)
-            {
-                currentTouchPos = pos;
-            }
-        }
+        // 2. Processamento contínuo de Entrada (Touch / Mouse)
+        HandleInputLifecycle();
     }
 
     private void FixedUpdate()
     {
+        // Velocidade base + bônus de slide
         float currentSpeed = runSpeed;
         if (isSliding && !isGroundPounding)
         {
@@ -151,66 +148,97 @@ public class PlayerController : MonoBehaviour
 
         rb.linearVelocity = new Vector2(currentSpeed, rb.linearVelocity.y);
 
+        // Execução do pulo
         if (jumpRequested)
         {
             if (isGrounded)
             {
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
             }
-
             jumpRequested = false;
         }
     }
 
-    public void Bounce()
-    {
-        isGroundPounding = false;
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, 0f);
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, bounceForce);
-    }
-
     /// <summary>
-    /// Evento chamado diretamente pelo componente Player Input.
+    /// Lê e processa os estados de toque (Início, Movimento e Liberação) a cada frame.
     /// </summary>
-    public void OnJump(InputValue value)
+    private void HandleInputLifecycle()
     {
-        if (value.isPressed)
+        // Suporte a Touchscreen (Mobile)
+        if (Touch.activeTouches.Count > 0)
         {
-            Vector2 pos = GetInputPosition();
-            Debug.Log($"[Input Log] Toque INICIADO na posição Y: {pos.y}");
+            Touch touch = Touch.activeTouches[0];
 
-            startTouchPos = pos;
-            currentTouchPos = pos;
-            isHoldingTouch = true;
-
-            // Checagem de Ground Pound (Duplo toque no ar)
-            if (!isGrounded)
+            if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
-                float timeSinceLastTap = Time.time - lastAirTapTime;
-                if (timeSinceLastTap <= doubleTapThreshold)
-                {
-                    Debug.Log("[Input Log] Ação reconhecida: GROUND POUND!");
-                    ExecuteGroundPound();
-                }
-                lastAirTapTime = Time.time;
+                ProcessTouchStart(touch.screenPosition);
+            }
+            else if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved || touch.phase == UnityEngine.InputSystem.TouchPhase.Stationary)
+            {
+                currentTouchPos = touch.screenPosition;
+            }
+            else if (touch.phase == UnityEngine.InputSystem.TouchPhase.Ended || touch.phase == UnityEngine.InputSystem.TouchPhase.Canceled)
+            {
+                currentTouchPos = touch.screenPosition;
+                ProcessTouchEnd();
+            }
+            return;
+        }
+
+        // Suporte ao Mouse (Unity Editor / PC)
+        if (Mouse.current != null)
+        {
+            if (Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                ProcessTouchStart(Mouse.current.position.ReadValue());
+            }
+            else if (Mouse.current.leftButton.isPressed)
+            {
+                currentTouchPos = Mouse.current.position.ReadValue();
+            }
+            else if (Mouse.current.leftButton.wasReleasedThisFrame && isTouching)
+            {
+                currentTouchPos = Mouse.current.position.ReadValue();
+                ProcessTouchEnd();
             }
         }
-        else
-        {
-            Debug.Log("[Input Log] Toque LIBERADO. Avaliando gesto...");
-            isHoldingTouch = false;
+    }
 
-            EvaluateGesture();
+    private void ProcessTouchStart(Vector2 position)
+    {
+        startTouchPos = position;
+        currentTouchPos = position;
+        isTouching = true;
+
+        Debug.Log($"[Input Log] Toque INICIADO na posição Y: {position.y}");
+
+        // Checagem de Ground Pound (Duplo toque no ar)
+        if (!isGrounded)
+        {
+            float timeSinceLastTap = Time.time - lastAirTapTime;
+            if (timeSinceLastTap <= doubleTapThreshold)
+            {
+                Debug.Log("[Input Log] Ação reconhecida: GROUND POUND!");
+                ExecuteGroundPound();
+            }
+            lastAirTapTime = Time.time;
         }
     }
 
+    private void ProcessTouchEnd()
+    {
+        isTouching = false;
+        Debug.Log("[Input Log] Toque LIBERADO. Avaliando gesto...");
+        EvaluateGesture();
+    }
+
     /// <summary>
-    /// Decide a ação (Pulo, Slide ou Ataque) ao soltar a tela.
+    /// Decide o comando (Pulo, Slide ou Ataque) com base no deslocamento vertical do dedo.
     /// </summary>
     private void EvaluateGesture()
     {
         float deltaY = currentTouchPos.y - startTouchPos.y;
-        Debug.Log($"[Input Log] Variação Vertical (Delta Y): {deltaY} | Limite (MinSwipe): {minSwipeDistance}");
+        Debug.Log($"[Input Log] Variação Vertical (Delta Y): {deltaY:F1} | Limite: {minSwipeDistance}");
 
         // 1. Swipe Up (Pulo)
         if (deltaY >= minSwipeDistance && !isGroundPounding)
@@ -224,7 +252,7 @@ public class PlayerController : MonoBehaviour
             Debug.Log("[Input Log] Decisão: SLIDE (Swipe Down)");
             StartSlide();
         }
-        // 3. Toque Simples (Ataque) - No chão ou no ar!
+        // 3. Toque Simples (Ataque)
         else if (Mathf.Abs(deltaY) < minSwipeDistance && !isGroundPounding)
         {
             Debug.Log("[Input Log] Decisão: ATAQUE BÁSICO (Toque Simples)");
@@ -234,27 +262,17 @@ public class PlayerController : MonoBehaviour
 
     public void TriggerAttack()
     {
-        if (isAttacking)
-        {
-            Debug.Log("[Input Log] Ataque ignorado: O jogador já está atacando.");
-            return;
-        }
-
+        if (isAttacking) return;
         StartCoroutine(AttackRoutine());
     }
 
     private IEnumerator AttackRoutine()
     {
         isAttacking = true;
-
         if (attackHitboxObject != null)
         {
             attackHitboxObject.SetActive(true);
             Debug.Log("<color=green>[Ataque Log] Hitbox do Ataque ATIVADA!</color>");
-        }
-        else
-        {
-            Debug.LogError("[Ataque Log] ERRO: Referência de attackHitboxObject está NULL!");
         }
 
         yield return new WaitForSeconds(attackDuration);
@@ -264,14 +282,19 @@ public class PlayerController : MonoBehaviour
             attackHitboxObject.SetActive(false);
             Debug.Log("<color=red>[Ataque Log] Hitbox do Ataque DESATIVADA!</color>");
         }
-
         isAttacking = false;
+    }
+
+    public void Bounce()
+    {
+        isGroundPounding = false;
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, 0f);
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, bounceForce);
     }
 
     private void ExecuteGroundPound()
     {
         if (isGroundPounding) return;
-
         isGroundPounding = true;
 
         if (isSliding)
@@ -282,24 +305,6 @@ public class PlayerController : MonoBehaviour
         }
 
         rb.linearVelocity = new Vector2(runSpeed, -groundPoundForce);
-    }
-
-    /// <summary>
-    /// Método auxiliar para ler a posição atual do ponteiro/toque.
-    /// </summary>
-    private Vector2 GetInputPosition()
-    {
-        if (Pointer.current != null)
-        {
-            return Pointer.current.position.ReadValue();
-        }
-
-        if (UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches.Count > 0)
-        {
-            return UnityEngine.InputSystem.EnhancedTouch.Touch.activeTouches[0].screenPosition;
-        }
-
-        return Vector2.zero;
     }
 
     private void StartSlide()
@@ -317,7 +322,6 @@ public class PlayerController : MonoBehaviour
     private IEnumerator SlideRoutine()
     {
         isSliding = true;
-
         if (capsuleCollider != null)
         {
             capsuleCollider.size = new Vector2(originalColliderSize.x, originalColliderSize.y * 0.5f);

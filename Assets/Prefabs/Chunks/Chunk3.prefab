@@ -27,7 +27,7 @@ Transform:
   m_GameObject: {fileID: 1003186924261585158}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -7.91, y: -1.31, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 6, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -165,7 +165,7 @@ Transform:
   m_GameObject: {fileID: 1301829699237547233}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 6.56, y: -1.31, z: 0}
+  m_LocalPosition: {x: 13.559999, y: 0, z: 0}
   m_LocalScale: {x: 6.9750004, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -303,7 +303,7 @@ Transform:
   m_GameObject: {fileID: 4171693197135774293}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -1.0713673, y: 0, z: 0}
+  m_LocalPosition: {x: 7.03, y: 0.97, z: 0}
   m_LocalScale: {x: 2.2875, y: 0.325, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -426,7 +426,7 @@ GameObject:
   - component: {fileID: 2549087299934737133}
   - component: {fileID: 7064183193593690209}
   - component: {fileID: 8376988546680027467}
-  - component: {fileID: 4977631357927395294}
+  - component: {fileID: 2736922280249121680}
   m_Layer: 0
   m_Name: Chunk3
   m_TagString: Untagged
@@ -515,7 +515,7 @@ CompositeCollider2D:
   m_CompositeOperation: 0
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
-  m_GeometryType: 0
+  m_GeometryType: 1
   m_GenerationType: 0
   m_EdgeRadius: 0
   m_ColliderPaths: []
@@ -537,7 +537,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 64b8a984c50cada45a20e7d0174d3873, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ChunkResetter
---- !u!114 &4977631357927395294
+--- !u!114 &2736922280249121680
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -546,9 +546,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 8309735968636412648}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 64b8a984c50cada45a20e7d0174d3873, type: 3}
+  m_Script: {fileID: 11500000, guid: 38a7207de75cee246a2395b7df576bf0, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ChunkResetter
+  m_EditorClassIdentifier: Assembly-CSharp::Chunk
+  autoCalculateWidth: 1
+  manualWidth: 20
 --- !u!1001 &5492597811031343949
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -559,11 +561,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 3428320036501700832, guid: 2c92caa61760b1443a91184c101c0723, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 7.0497303
+      value: 14.04973
       objectReference: {fileID: 0}
     - target: {fileID: 3428320036501700832, guid: 2c92caa61760b1443a91184c101c0723, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.05901909
+      value: 1.39
       objectReference: {fileID: 0}
     - target: {fileID: 3428320036501700832, guid: 2c92caa61760b1443a91184c101c0723, type: 3}
       propertyPath: m_LocalPosition.z

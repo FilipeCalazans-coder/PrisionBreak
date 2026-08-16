@@ -436,7 +436,7 @@ Transform:
   m_GameObject: {fileID: 397369344}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.1099997, y: 2.3700001, z: -20}
+  m_LocalPosition: {x: 4.86, y: 4.37, z: -20}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -935,7 +935,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -2.1099997, y: 2.3700001, z: -20}
+  m_LocalPosition: {x: 4.86, y: 4.37, z: -20}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2124,7 +2124,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ChunkSpawner
   playerTransform: {fileID: 1955529636}
   startingChunkTag: Chunk_Start
-  chunkWidth: 20
+  fixedGroundY: 0
+  fallbackChunkWidth: 20
   initialChunksCount: 5
   spawnDistanceThreshold: 30
 --- !u!4 &1464158553
@@ -2328,7 +2329,7 @@ Transform:
   m_GameObject: {fileID: 1955529635}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -6.97, y: 0.22, z: 0}
+  m_LocalPosition: {x: 0, y: 2.22, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
