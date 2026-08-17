@@ -5,8 +5,7 @@ using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 /// <summary>
-/// Controla a movimentação do jogador (corrida, pulo, slide, ataque e ground pound)
-/// tratando corretamente o ciclo de vida do toque (pressionar, arrastar e soltar).
+/// Controla a física, as ações e as animações do jogador no runner 2D.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CapsuleCollider2D))]
@@ -24,7 +23,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private GameObject attackHitboxObject;
 
     [Tooltip("Duração em segundos que a Hitbox do ataque permanece ativa.")]
-    [SerializeField] private float attackDuration = 0.3f;
+    [SerializeField] private float attackDuration = 0.2f;
 
     [Header("Configurações de Impacto (Bounce)")]
     [Tooltip("Força do pulo de resposta ao esmagar um inimigo com o Ground Pound.")]
@@ -41,8 +40,8 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Força com que o jogador é lançado para baixo no Ground Pound.")]
     [SerializeField] private float groundPoundForce = 25f;
 
-    [Tooltip("Tempo máximo em segundos entre dois toques no ar para acionar o Ground Pound.")]
-    [SerializeField] private float doubleTapThreshold = 0.3f;
+    [Tooltip("Janela máxima em segundos entre os toques no ar para acionar o Ground Pound.")]
+    [SerializeField] private float doubleTapThreshold = 0.25f;
 
     [Header("Configurações de Swipe (Sensibilidade)")]
     [Tooltip("Distância mínima em pixels para considerar um gesto de deslize.")]
@@ -61,6 +60,17 @@ public class PlayerController : MonoBehaviour
     // Componentes internos
     private Rigidbody2D rb;
     private CapsuleCollider2D capsuleCollider;
+    private Animator animator;
+
+    // Hashes dos parâmetros do Animator (otimização de desempenho)
+    private readonly int isGroundedHash = Animator.StringToHash("isGrounded");
+    private readonly int isSlidingHash = Animator.StringToHash("isSliding");
+    private readonly int isGroundPoundingHash = Animator.StringToHash("isGroundPounding");
+    private readonly int attackTriggerHash = Animator.StringToHash("Attack");
+
+    // Corrotinas de controle
+    private Coroutine attackCoroutine;
+    private Coroutine pendingAirAttackCoroutine;
 
     // Estados de movimento
     private bool isGrounded;
@@ -71,18 +81,20 @@ public class PlayerController : MonoBehaviour
 
     public bool IsGroundPounding => isGroundPounding;
 
-    // Variáveis de controle de toque e gestos
-    private float lastAirTapTime = 0f;
+    // Controle de toque e gestos
+    private float lastAirTapTime = -10f;
     private Vector2 originalColliderSize;
     private Vector2 originalColliderOffset;
     private Vector2 startTouchPos;
     private Vector2 currentTouchPos;
     private bool isTouching;
+    private bool consumedByGroundPound = false;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         capsuleCollider = GetComponent<CapsuleCollider2D>();
+        animator = GetComponent<Animator>();
 
         if (capsuleCollider != null)
         {
@@ -102,10 +114,6 @@ public class PlayerController : MonoBehaviour
         if (attackHitboxObject != null)
         {
             attackHitboxObject.SetActive(false);
-        }
-        else
-        {
-            Debug.LogWarning("[PlayerController] AttackHitboxObject não foi atribuído no Inspector!");
         }
     }
 
@@ -130,16 +138,20 @@ public class PlayerController : MonoBehaviour
             if (isGrounded && !wasGrounded)
             {
                 isGroundPounding = false;
+                consumedByGroundPound = false;
+                CancelPendingAirAttack();
             }
         }
 
-        // 2. Processamento contínuo de Entrada (Touch / Mouse)
+        // 2. Atualização dos parâmetros do Animator
+        UpdateAnimator();
+
+        // 3. Leitura contínua de Entrada
         HandleInputLifecycle();
     }
 
     private void FixedUpdate()
     {
-        // Velocidade base + bônus de slide
         float currentSpeed = runSpeed;
         if (isSliding && !isGroundPounding)
         {
@@ -148,7 +160,6 @@ public class PlayerController : MonoBehaviour
 
         rb.linearVelocity = new Vector2(currentSpeed, rb.linearVelocity.y);
 
-        // Execução do pulo
         if (jumpRequested)
         {
             if (isGrounded)
@@ -159,12 +170,18 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Lê e processa os estados de toque (Início, Movimento e Liberação) a cada frame.
-    /// </summary>
+    private void UpdateAnimator()
+    {
+        if (animator == null) return;
+
+        animator.SetBool(isGroundedHash, isGrounded);
+        animator.SetBool(isSlidingHash, isSliding);
+        animator.SetBool(isGroundPoundingHash, isGroundPounding);
+    }
+
     private void HandleInputLifecycle()
     {
-        // Suporte a Touchscreen (Mobile)
+        // Mobile Touch
         if (Touch.activeTouches.Count > 0)
         {
             Touch touch = Touch.activeTouches[0];
@@ -185,7 +202,7 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        // Suporte ao Mouse (Unity Editor / PC)
+        // Mouse (Editor / PC)
         if (Mouse.current != null)
         {
             if (Mouse.current.leftButton.wasPressedThisFrame)
@@ -210,16 +227,16 @@ public class PlayerController : MonoBehaviour
         currentTouchPos = position;
         isTouching = true;
 
-        Debug.Log($"[Input Log] Toque INICIADO na posição Y: {position.y}");
-
-        // Checagem de Ground Pound (Duplo toque no ar)
         if (!isGrounded)
         {
             float timeSinceLastTap = Time.time - lastAirTapTime;
             if (timeSinceLastTap <= doubleTapThreshold)
             {
-                Debug.Log("[Input Log] Ação reconhecida: GROUND POUND!");
+                consumedByGroundPound = true;
+                CancelPendingAirAttack();
                 ExecuteGroundPound();
+                lastAirTapTime = -10f;
+                return;
             }
             lastAirTapTime = Time.time;
         }
@@ -228,51 +245,86 @@ public class PlayerController : MonoBehaviour
     private void ProcessTouchEnd()
     {
         isTouching = false;
-        Debug.Log("[Input Log] Toque LIBERADO. Avaliando gesto...");
         EvaluateGesture();
     }
 
-    /// <summary>
-    /// Decide o comando (Pulo, Slide ou Ataque) com base no deslocamento vertical do dedo.
-    /// </summary>
     private void EvaluateGesture()
     {
-        float deltaY = currentTouchPos.y - startTouchPos.y;
-        Debug.Log($"[Input Log] Variação Vertical (Delta Y): {deltaY:F1} | Limite: {minSwipeDistance}");
-
-        // 1. Swipe Up (Pulo)
-        if (deltaY >= minSwipeDistance && !isGroundPounding)
+        if (consumedByGroundPound)
         {
-            Debug.Log("[Input Log] Decisão: PULO (Swipe Up)");
+            consumedByGroundPound = false;
+            return;
+        }
+
+        if (isGroundPounding) return;
+
+        float deltaY = currentTouchPos.y - startTouchPos.y;
+
+        // Pulo (Swipe Up)
+        if (deltaY >= minSwipeDistance)
+        {
+            CancelPendingAirAttack();
             jumpRequested = true;
         }
-        // 2. Swipe Down (Slide)
-        else if (deltaY <= -minSwipeDistance && !isGroundPounding)
+        // Slide (Swipe Down)
+        else if (deltaY <= -minSwipeDistance)
         {
-            Debug.Log("[Input Log] Decisão: SLIDE (Swipe Down)");
+            CancelPendingAirAttack();
             StartSlide();
         }
-        // 3. Toque Simples (Ataque)
-        else if (Mathf.Abs(deltaY) < minSwipeDistance && !isGroundPounding)
+        // Toque Simples (Ataque)
+        else if (Mathf.Abs(deltaY) < minSwipeDistance)
         {
-            Debug.Log("[Input Log] Decisão: ATAQUE BÁSICO (Toque Simples)");
+            if (isGrounded)
+            {
+                TriggerAttack();
+            }
+            else
+            {
+                CancelPendingAirAttack();
+                pendingAirAttackCoroutine = StartCoroutine(WaitAirAttackRoutine());
+            }
+        }
+    }
+
+    private IEnumerator WaitAirAttackRoutine()
+    {
+        yield return new WaitForSeconds(doubleTapThreshold);
+
+        if (!isGroundPounding && !consumedByGroundPound)
+        {
             TriggerAttack();
+        }
+        pendingAirAttackCoroutine = null;
+    }
+
+    private void CancelPendingAirAttack()
+    {
+        if (pendingAirAttackCoroutine != null)
+        {
+            StopCoroutine(pendingAirAttackCoroutine);
+            pendingAirAttackCoroutine = null;
         }
     }
 
     public void TriggerAttack()
     {
-        if (isAttacking) return;
-        StartCoroutine(AttackRoutine());
+        if (isAttacking || isGroundPounding) return;
+        attackCoroutine = StartCoroutine(AttackRoutine());
     }
 
     private IEnumerator AttackRoutine()
     {
         isAttacking = true;
+
+        if (animator != null)
+        {
+            animator.SetTrigger(attackTriggerHash);
+        }
+
         if (attackHitboxObject != null)
         {
             attackHitboxObject.SetActive(true);
-            Debug.Log("<color=green>[Ataque Log] Hitbox do Ataque ATIVADA!</color>");
         }
 
         yield return new WaitForSeconds(attackDuration);
@@ -280,7 +332,6 @@ public class PlayerController : MonoBehaviour
         if (attackHitboxObject != null)
         {
             attackHitboxObject.SetActive(false);
-            Debug.Log("<color=red>[Ataque Log] Hitbox do Ataque DESATIVADA!</color>");
         }
         isAttacking = false;
     }
@@ -296,6 +347,15 @@ public class PlayerController : MonoBehaviour
     {
         if (isGroundPounding) return;
         isGroundPounding = true;
+
+        CancelPendingAirAttack();
+
+        if (isAttacking)
+        {
+            if (attackCoroutine != null) StopCoroutine(attackCoroutine);
+            if (attackHitboxObject != null) attackHitboxObject.SetActive(false);
+            isAttacking = false;
+        }
 
         if (isSliding)
         {
@@ -322,6 +382,7 @@ public class PlayerController : MonoBehaviour
     private IEnumerator SlideRoutine()
     {
         isSliding = true;
+
         if (capsuleCollider != null)
         {
             capsuleCollider.size = new Vector2(originalColliderSize.x, originalColliderSize.y * 0.5f);
