@@ -1,19 +1,27 @@
 using UnityEngine;
 
 /// <summary>
-/// Controla a colisão de obstáculos e inimigos com o jogador.
+/// Gerencia a colisão entre o jogador e obstáculos/inimigos.
+/// Permite esmagar inimigos ao cair sobre a cabeça deles (pulo tradicional de plataforma)
+/// ou ao atingi-los com o Ground Pound.
 /// </summary>
 public class Obstacle : MonoBehaviour
 {
     [Header("Configurações de Colisão")]
-    [Tooltip("Tag do jogador.")]
+    [Tooltip("Tag atribuída ao GameObject do jogador.")]
     [SerializeField] private string playerTag = "Player";
+
+    [Tooltip("Define se este obstáculo é um inimigo que pode ser derrotado ao pular em cima dele.")]
+    [SerializeField] private bool canBeStomped = true;
+
+    [Tooltip("Tolerância de altura para considerar que o jogador pisou por cima (Offset Y).")]
+    [SerializeField] private float stompThreshold = 0.2f;
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag(playerTag))
         {
-            HandlePlayerCollision(collision.gameObject);
+            HandleCollision(collision.gameObject, collision);
         }
     }
 
@@ -21,37 +29,71 @@ public class Obstacle : MonoBehaviour
     {
         if (other.CompareTag(playerTag))
         {
-            HandlePlayerCollision(other.gameObject);
+            HandleCollision(other.gameObject, null);
         }
     }
 
-    private void HandlePlayerCollision(GameObject playerObj)
+    /// <summary>
+    /// Avalia se o contato resulta no esmagamento do inimigo ou na derrota do jogador.
+    /// </summary>
+    private void HandleCollision(GameObject playerObj, Collision2D collision)
     {
         PlayerController player = playerObj.GetComponent<PlayerController>();
+        Rigidbody2D playerRb = playerObj.GetComponent<Rigidbody2D>();
 
-        // Se o jogador estiver em Ground Pound, causa dano/destrói o inimigo
-        if (player != null && player.IsGroundPounding)
+        if (player == null) return;
+
+        // 1. Caso: Ground Pound ativo (destrói o obstáculo/inimigo imediatamente)
+        if (player.IsGroundPounding)
         {
-            player.Bounce();
+            DefeatObstacle(player);
+            return;
+        }
 
-            // Se o inimigo tiver o script Health, aplica dano fatal
-            Health health = GetComponent<Health>();
-            if (health != null)
+        // 2. Caso: Pulo/Queda sobre a cabeça do inimigo (Stomp clássico de plataforma)
+        if (canBeStomped)
+        {
+            // O jogador precisa estar caindo (velocidade vertical negativa)
+            bool isFalling = playerRb != null && playerRb.linearVelocity.y < 0.1f;
+
+            // A base do jogador precisa estar acima do centro do inimigo
+            bool isAbove = playerObj.transform.position.y > (transform.position.y + stompThreshold);
+
+            if (isFalling && isAbove)
             {
-                health.TakeDamage(999);
+                DefeatObstacle(player);
+                return;
             }
-            else
-            {
-                gameObject.SetActive(false);
-            }
+        }
+
+        // 3. Caso contrário: Colisão frontal ou lateral, derrota o jogador
+        TriggerGameOver();
+    }
+
+    /// <summary>
+    /// Elimina o inimigo e concede o impulso vertical ao jogador.
+    /// </summary>
+    private void DefeatObstacle(PlayerController player)
+    {
+        // Aplica o pulo de resposta no jogador
+        player.Bounce();
+
+        // Se o objeto possuir o componente Health, aplica o dano
+        Health health = GetComponent<Health>();
+        if (health != null)
+        {
+            health.TakeDamage(999);
         }
         else
         {
-            // Caso contrário, o jogador morre
-            TriggerGameOver();
+            // Caso seja um objeto sem Health, desativa para o Object Pooler
+            gameObject.SetActive(false);
         }
     }
 
+    /// <summary>
+    /// Aciona a tela de Game Over caso o jogador seja derrotado.
+    /// </summary>
     private void TriggerGameOver()
     {
         if (GameManager.Instance != null)

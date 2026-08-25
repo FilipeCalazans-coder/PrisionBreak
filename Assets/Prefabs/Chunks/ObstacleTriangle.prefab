@@ -157,6 +157,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Obstacle
   playerTag: Player
+  canBeStomped: 0
+  stompThreshold: 0.2
 --- !u!114 &4401967032353682057
 MonoBehaviour:
   m_ObjectHideFlags: 0

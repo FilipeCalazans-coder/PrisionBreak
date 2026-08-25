@@ -342,6 +342,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Obstacle
   playerTag: Player
+  canBeStomped: 1
+  stompThreshold: 0.2
 --- !u!114 &7483093281002507177
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -907,7 +909,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2833210152122312044, guid: 6a89beb76cc4730489b909181beadf05, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 7.9153957
+      value: 6.9153957
       objectReference: {fileID: 0}
     - target: {fileID: 2833210152122312044, guid: 6a89beb76cc4730489b909181beadf05, type: 3}
       propertyPath: m_LocalPosition.y

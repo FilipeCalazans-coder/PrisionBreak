@@ -1,24 +1,36 @@
 using UnityEngine;
-using UnityEngine.SceneManagement; // Namespace para gerenciar o carregamento de cenas
+using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Gerencia o estado do jogo, alternando entre a partida ativa e a tela de Game Over.
+/// Gerencia os estados globais do jogo: Menu Inicial, Partida Ativa e Game Over.
+/// Controla o fluxo de tempo e a exibição dos painéis da interface.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
-    // Instância estática para permitir acesso fácil de outros scripts (Padrão Singleton)
+    // Instância estática para acesso global fácil (Padrão Singleton)
     public static GameManager Instance;
 
-    [Header("Interface do Usuário (UI)")]
-    [Tooltip("Referência ao GameObject do Painel de Game Over na Canvas.")]
+    [Header("Painéis de Interface (UI)")]
+    [Tooltip("Referência ao GameObject do Painel de Menu Inicial no Canvas.")]
+    [SerializeField] private GameObject startMenuPanel;
+
+    [Tooltip("Referência ao GameObject do Painel de Game Over no Canvas.")]
     [SerializeField] private GameObject gameOverPanel;
 
-    // Variável interna para controlar se a partida já terminou
+    [Header("Interface Durante a Partida (HUD)")]
+    [Tooltip("Objeto que contém a pontuação e moedas durante o jogo (opcional).")]
+    [SerializeField] private GameObject inGameHUD;
+
+    // Variáveis internas de controle
+    private bool isGameStarted = false;
     private bool isGameOver = false;
+
+    public bool IsGameStarted => isGameStarted;
+    public bool IsGameOver => isGameOver;
 
     private void Awake()
     {
-        // Garante a existência de apenas uma instância do GameManager na cena
+        // Garante que só existe um GameManager na cena
         if (Instance == null)
         {
             Instance = this;
@@ -32,45 +44,65 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        // Garante que o tempo do jogo comece na velocidade normal (1.0)
-        Time.timeScale = 1f;
-
-        // Garante que o painel de Game Over comece desativado
-        if (gameOverPanel != null)
-        {
-            gameOverPanel.SetActive(false);
-        }
+        // 1. Inicia o jogo no estado de Menu Inicial
+        SetupStartMenu();
     }
 
     /// <summary>
-    /// Pausa o jogo e exibe a tela de derrota quando o jogador colide com um obstáculo.
+    /// Prepara a tela inicial pausando o jogo até o jogador clicar em Jogar.
+    /// </summary>
+    private void SetupStartMenu()
+    {
+        isGameStarted = false;
+        isGameOver = false;
+
+        // Congela o tempo para o jogador não correr antes da hora
+        Time.timeScale = 0f;
+
+        // Exibe o menu inicial e oculta as outras telas
+        if (startMenuPanel != null) startMenuPanel.SetActive(true);
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        if (inGameHUD != null) inGameHUD.SetActive(false);
+    }
+
+    /// <summary>
+    /// Inicia a corrida ao clicar no botão 'Jogar'.
+    /// Método vinculado ao botão da UI.
+    /// </summary>
+    public void StartGame()
+    {
+        isGameStarted = true;
+
+        // Descongela a física e o movimento do jogo
+        Time.timeScale = 1f;
+
+        // Oculta o menu e exibe a HUD de pontos/moedas
+        if (startMenuPanel != null) startMenuPanel.SetActive(false);
+        if (inGameHUD != null) inGameHUD.SetActive(true);
+    }
+
+    /// <summary>
+    /// Pausa o jogo e exibe a tela de derrota quando o jogador colide.
     /// </summary>
     public void GameOver()
     {
         if (isGameOver) return;
-
         isGameOver = true;
 
-        // Congela o tempo da física e animações do jogo
+        // Congela o tempo da física
         Time.timeScale = 0f;
 
-        // Exibe a tela de Game Over
-        if (gameOverPanel != null)
-        {
-            gameOverPanel.SetActive(true);
-        }
+        // Oculta o HUD e exibe o Game Over
+        if (inGameHUD != null) inGameHUD.SetActive(false);
+        if (gameOverPanel != null) gameOverPanel.SetActive(true);
     }
 
     /// <summary>
-    /// Descongela o tempo e recarrega a cena para reiniciar a partida.
-    /// Método vinculado ao botão 'Tentar Novamente' na UI.
+    /// Reinicia a partida recarregando a cena ativa.
     /// </summary>
     public void RestartGame()
     {
-        // Restaura a velocidade do tempo antes de recarregar a cena
         Time.timeScale = 1f;
-
-        // Recarrega a cena ativa no momento
         int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
         SceneManager.LoadScene(currentSceneIndex);
     }
