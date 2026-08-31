@@ -6,54 +6,54 @@ using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 /// <summary>
-/// Controla a física, as ações e as animações do jogador no runner 2D,
-/// com checagem segura de parâmetros do Animator para evitar erros no Console.
+/// Controla movimentação, velocidade progressiva sincronizada com o Animator,
+/// física de pulo com peso, gestos de toque na tela e combate.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CapsuleCollider2D))]
 public class PlayerController : MonoBehaviour
 {
-    [Header("Configurações de Movimento")]
-    [Tooltip("Velocidade constante padrão do jogador para a direita.")]
-    [SerializeField] private float runSpeed = 4f;
+    [Header("Configurações de Velocidade Progressiva")]
+    [Tooltip("Velocidade inicial de corrida do jogador.")]
+    [SerializeField] private float initialRunSpeed = 4f;
+    [Tooltip("Velocidade máxima que o jogador pode atingir ao longo do tempo.")]
+    [SerializeField] private float maxRunSpeed = 12f;
+    [Tooltip("Taxa de aumento de velocidade por segundo.")]
+    [SerializeField] private float speedIncreaseRate = 0.05f;
 
-    [Tooltip("Força do pulo normal aplicada ao personagem.")]
-    [SerializeField] private float jumpForce = 6f;
+    [Header("Configurações de Pulo & Peso")]
+    [Tooltip("Força fixa do impulso de pulo.")]
+    [SerializeField] private float jumpForce = 9f;
+    [Tooltip("Multiplicador de gravidade durante a descida (adiciona peso ao personagem).")]
+    [SerializeField] private float fallMultiplier = 2.5f;
 
-    [Header("Configurações de Ataque Básico")]
-    [Tooltip("Objeto filho que contém o colisor (Hitbox) do ataque.")]
+    [Header("Configurações de Ataque")]
+    [Tooltip("Hitbox filha para colisão do golpe.")]
     [SerializeField] private GameObject attackHitboxObject;
-
-    [Tooltip("Duração em segundos que a Hitbox do ataque permanece ativa.")]
+    [Tooltip("Tempo em segundos que a hitbox fica ativa.")]
     [SerializeField] private float attackDuration = 0.2f;
 
     [Header("Configurações de Impacto (Bounce)")]
-    [Tooltip("Força do pulo de resposta ao esmagar um inimigo com o Ground Pound ou pulo.")]
-    [SerializeField] private float bounceForce = 6f;
+    [Tooltip("Força vertical ao quicar em um inimigo.")]
+    [SerializeField] private float bounceForce = 7f;
 
     [Header("Configurações de Slide & Dash")]
-    [Tooltip("Tempo em segundos que o personagem permanece agachado e acelerado.")]
+    [Tooltip("Duração do slide em segundos.")]
     [SerializeField] private float slideDuration = 0.8f;
-
-    [Tooltip("Velocidade extra adicionada horizontalmente durante o Slide.")]
+    [Tooltip("Velocidade adicional horizontal durante o slide.")]
     [SerializeField] private float dashBonusSpeed = 5f;
 
     [Header("Configurações de Ground Pound")]
-    [Tooltip("Força vertical descendente aplicada durante o Ground Pound.")]
+    [Tooltip("Força descendente vertical do ataque aéreo.")]
     [SerializeField] private float groundPoundForce = 25f;
 
-    [Header("Configurações de Swipe (Sensibilidade)")]
-    [Tooltip("Distância mínima em pixels para considerar um gesto de deslize.")]
+    [Header("Configurações de Gesto (Swipe)")]
+    [Tooltip("Distância mínima em pixels para validar um swipe.")]
     [SerializeField] private float minSwipeDistance = 30f;
 
     [Header("Verificação de Chão")]
-    [Tooltip("Ponto de onde será feito o raio de detecção do chão.")]
     [SerializeField] private Transform groundCheck;
-
-    [Tooltip("Raio da esfera de detecção do chão.")]
     [SerializeField] private float groundCheckRadius = 0.2f;
-
-    [Tooltip("Camada (Layer) correspondente ao chão.")]
     [SerializeField] private LayerMask groundLayer;
 
     // Componentes internos
@@ -61,16 +61,16 @@ public class PlayerController : MonoBehaviour
     private CapsuleCollider2D capsuleCollider;
     private Animator animator;
 
-    // Conjunto para armazenar e validar parâmetros existentes no Animator
+    // Cache de parâmetros do Animator
     private HashSet<int> existingAnimatorParams = new HashSet<int>();
-
-    // Hashes dos parâmetros do Animator
     private readonly int isGroundedHash = Animator.StringToHash("isGrounded");
     private readonly int isSlidingHash = Animator.StringToHash("isSliding");
     private readonly int isGroundPoundingHash = Animator.StringToHash("isGroundPounding");
     private readonly int attackTriggerHash = Animator.StringToHash("Attack");
+    private readonly int animSpeedHash = Animator.StringToHash("animSpeed");
 
-    // Estados de movimento
+    // Estados de movimento e velocidade
+    private float currentRunSpeed;
     private bool isGrounded;
     private bool jumpRequested;
     private bool isSliding;
@@ -78,12 +78,13 @@ public class PlayerController : MonoBehaviour
     private bool isAttacking;
 
     public bool IsGroundPounding => isGroundPounding;
+    public float CurrentRunSpeed => currentRunSpeed;
 
-    // Controle de dimensões do colisor
+    // Dimensões originais do colisor
     private Vector2 originalColliderSize;
     private Vector2 originalColliderOffset;
 
-    // Controle de toque e gestos
+    // Controle de gestos de toque
     private Vector2 startTouchPos;
     private Vector2 currentTouchPos;
     private bool isTouching;
@@ -103,24 +104,18 @@ public class PlayerController : MonoBehaviour
         if (attackHitboxObject == null)
         {
             Transform foundHitbox = transform.Find("AttackHitbox");
-            if (foundHitbox != null)
-            {
-                attackHitboxObject = foundHitbox.gameObject;
-            }
+            if (foundHitbox != null) attackHitboxObject = foundHitbox.gameObject;
         }
 
-        if (attackHitboxObject != null)
-        {
-            attackHitboxObject.SetActive(false);
-        }
+        if (attackHitboxObject != null) attackHitboxObject.SetActive(false);
 
-        // Mapeia todos os parâmetros criados no Animator Controller para validação segura
         CacheAnimatorParameters();
     }
 
     private void OnEnable()
     {
         EnhancedTouchSupport.Enable();
+        currentRunSpeed = initialRunSpeed;
     }
 
     private void OnDisable()
@@ -130,7 +125,10 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        // 1. Verificação de Chão
+        // 1. Aceleração progressiva ao longo da corrida
+        UpdateProgressiveSpeed();
+
+        // 2. Detecção de Chão
         if (groundCheck != null)
         {
             bool wasGrounded = isGrounded;
@@ -142,23 +140,25 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // 2. Atualização segura do Animator
+        // 3. Atualização segura dos parâmetros no Animator
         UpdateAnimator();
 
-        // 3. Processamento de Toque / Mouse
+        // 4. Processamento de Entradas (Swipe / Teclado / Toque)
         HandleInputLifecycle();
     }
 
     private void FixedUpdate()
     {
-        float currentSpeed = runSpeed;
+        // Calcula a velocidade horizontal somando o bônus de slide se ativo
+        float activeSpeed = currentRunSpeed;
         if (isSliding && !isGroundPounding)
         {
-            currentSpeed += dashBonusSpeed;
+            activeSpeed += dashBonusSpeed;
         }
 
-        rb.linearVelocity = new Vector2(currentSpeed, rb.linearVelocity.y);
+        rb.linearVelocity = new Vector2(activeSpeed, rb.linearVelocity.y);
 
+        // Disparo do pulo
         if (jumpRequested)
         {
             if (isGrounded)
@@ -167,25 +167,45 @@ public class PlayerController : MonoBehaviour
             }
             jumpRequested = false;
         }
+
+        // Aplica peso extra na descida
+        ApplyFallGravity();
     }
 
     /// <summary>
-    /// Lê e guarda os parâmetros cadastrados no Animator Controller.
+    /// Aumenta a velocidade do jogador gradualmente a cada frame até atingir o teto máximo.
     /// </summary>
-    private void CacheAnimatorParameters()
+    private void UpdateProgressiveSpeed()
     {
-        existingAnimatorParams.Clear();
-        if (animator != null && animator.runtimeAnimatorController != null)
+        if (GameManager.Instance != null)
         {
-            foreach (AnimatorControllerParameter param in animator.parameters)
+            if (!GameManager.Instance.IsGameStarted || GameManager.Instance.IsGameOver)
             {
-                existingAnimatorParams.Add(param.nameHash);
+                return;
             }
+        }
+
+        if (currentRunSpeed < maxRunSpeed)
+        {
+            currentRunSpeed = Mathf.MoveTowards(currentRunSpeed, maxRunSpeed, speedIncreaseRate * Time.deltaTime);
         }
     }
 
     /// <summary>
-    /// Envia os valores para o Animator apenas se os parâmetros existirem na controladora.
+    /// Aumenta a gravidade na descida para dar sensação de peso ao pulo.
+    /// </summary>
+    private void ApplyFallGravity()
+    {
+        if (isGroundPounding || isGrounded) return;
+
+        if (rb.linearVelocity.y < 0f)
+        {
+            rb.linearVelocity += Vector2.up * Physics2D.gravity.y * (fallMultiplier - 1f) * Time.fixedDeltaTime;
+        }
+    }
+
+    /// <summary>
+    /// Envia os estados e o multiplicador de velocidade de corrida para o Animator.
     /// </summary>
     private void UpdateAnimator()
     {
@@ -199,10 +219,38 @@ public class PlayerController : MonoBehaviour
 
         if (existingAnimatorParams.Contains(isGroundPoundingHash))
             animator.SetBool(isGroundPoundingHash, isGroundPounding);
+
+        // Atualiza a velocidade relativa da animação de corrida (Ex: 1x na largada, aumentando proporcionalmente)
+        if (existingAnimatorParams.Contains(animSpeedHash) && initialRunSpeed > 0f)
+        {
+            float normalizedSpeedRatio = currentRunSpeed / initialRunSpeed;
+            animator.SetFloat(animSpeedHash, normalizedSpeedRatio);
+        }
+    }
+
+    private void CacheAnimatorParameters()
+    {
+        existingAnimatorParams.Clear();
+        if (animator != null && animator.runtimeAnimatorController != null)
+        {
+            foreach (AnimatorControllerParameter param in animator.parameters)
+            {
+                existingAnimatorParams.Add(param.nameHash);
+            }
+        }
     }
 
     private void HandleInputLifecycle()
     {
+        // Teclado (Editor / PC)
+        if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            if (isGrounded && !isGroundPounding)
+            {
+                jumpRequested = true;
+            }
+        }
+
         // Touchscreen (Mobile)
         if (Touch.activeTouches.Count > 0)
         {
@@ -224,7 +272,7 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        // Mouse (Editor / PC)
+        // Mouse (Editor)
         if (Mouse.current != null)
         {
             if (Mouse.current.leftButton.wasPressedThisFrame)
@@ -282,7 +330,7 @@ public class PlayerController : MonoBehaviour
                 ExecuteGroundPound();
             }
         }
-        // 3. Toque Simples (Ataque Instantâneo)
+        // 3. Toque Simples (Ataque)
         else if (Mathf.Abs(deltaY) < minSwipeDistance)
         {
             TriggerAttack();
@@ -299,30 +347,23 @@ public class PlayerController : MonoBehaviour
     {
         isAttacking = true;
 
-        // Dispara o Trigger apenas se ele existir no Animator Controller
         if (animator != null && existingAnimatorParams.Contains(attackTriggerHash))
         {
             animator.SetTrigger(attackTriggerHash);
         }
 
-        if (attackHitboxObject != null)
-        {
-            attackHitboxObject.SetActive(true);
-        }
+        if (attackHitboxObject != null) attackHitboxObject.SetActive(true);
 
         yield return new WaitForSeconds(attackDuration);
 
-        if (attackHitboxObject != null)
-        {
-            attackHitboxObject.SetActive(false);
-        }
+        if (attackHitboxObject != null) attackHitboxObject.SetActive(false);
+
         isAttacking = false;
     }
 
     public void Bounce()
     {
         isGroundPounding = false;
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, 0f);
         rb.linearVelocity = new Vector2(rb.linearVelocity.x, bounceForce);
     }
 
@@ -345,7 +386,7 @@ public class PlayerController : MonoBehaviour
             isSliding = false;
         }
 
-        rb.linearVelocity = new Vector2(runSpeed, -groundPoundForce);
+        rb.linearVelocity = new Vector2(currentRunSpeed, -groundPoundForce);
     }
 
     private void StartSlide()
