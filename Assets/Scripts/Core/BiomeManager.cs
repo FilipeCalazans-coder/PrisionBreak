@@ -2,27 +2,46 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Define os dados e assets de um cenário/bioma do jogo.
+/// Define os andares ou rotas verticais disponíveis no jogo.
+/// </summary>
+public enum RouteLayer
+{
+    Default,    // Chão padrão / Térreo
+    UpperRoof   // Teto / Andar de cima / Rota suspensa
+}
+
+/// <summary>
+/// Estrutura que guarda os blocos e as alturas correspondentes a cada rota do bioma.
 /// </summary>
 [System.Serializable]
 public class BiomeData
 {
-    [Tooltip("Nome de identificação do cenário (ex: Floresta, Caverna).")]
+    [Tooltip("Nome do bioma (ex: Bloco de Celas, Refeitório, Pátio).")]
     public string biomeName;
 
-    [Tooltip("Distância em metros necessária para ativar este bioma.")]
+    [Tooltip("Distância em metros necessária para entrar neste bioma.")]
     public float targetDistance;
 
-    [Tooltip("Tags no ObjectPooler correspondentes aos Chunks de chão deste cenário.")]
+    [Header("Rota Padrão (Térreo)")]
+    [Tooltip("Altura vertical (Eixo Y) onde os blocos do térreo serão posicionados.")]
+    public float groundHeightY = 0f;
+
+    [Tooltip("Tags dos Chunks da rota térrea/padrão deste bioma.")]
     public List<string> groundChunkTags;
+
+    [Header("Rota Superior (Teto / 2º Andar)")]
+    [Tooltip("Altura vertical (Eixo Y) onde os blocos do teto serão posicionados.")]
+    public float upperHeightY = 5f;
+
+    [Tooltip("Tags dos Chunks exclusivos da rota superior deste bioma.")]
+    public List<string> upperChunkTags;
 }
 
 /// <summary>
-/// Controla a transição de cenários/biomas com base na distância percorrida.
+/// Controla a progressão horizontal de biomas, as rotas verticais e as alturas dos Chunks.
 /// </summary>
 public class BiomeManager : MonoBehaviour
 {
-    // Instância estática para permitir acesso global fácil (Padrão Singleton)
     public static BiomeManager Instance;
 
     [Header("Referências")]
@@ -30,15 +49,17 @@ public class BiomeManager : MonoBehaviour
     [SerializeField] private Transform playerTransform;
 
     [Header("Configuração de Biomas")]
-    [Tooltip("Lista dos cenários do jogo em ordem de progressão.")]
+    [Tooltip("Lista de biomas configurados por ordem de distância.")]
     [SerializeField] private List<BiomeData> biomes;
 
-    // Bioma e índice atual
+    // Estado ativo
     private int currentBiomeIndex = 0;
+    private RouteLayer currentRoute = RouteLayer.Default;
+
+    public RouteLayer CurrentRoute => currentRoute;
 
     private void Awake()
     {
-        // Garante a existência de apenas uma instância do BiomeManager na cena
         if (Instance == null)
         {
             Instance = this;
@@ -54,7 +75,7 @@ public class BiomeManager : MonoBehaviour
     {
         if (playerTransform == null || biomes == null || biomes.Count == 0) return;
 
-        // Verifica se o jogador atingiu a distância para o próximo bioma
+        // Verifica se atingiu a distância para o próximo bioma principal
         int nextIndex = currentBiomeIndex + 1;
         if (nextIndex < biomes.Count)
         {
@@ -66,24 +87,62 @@ public class BiomeManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Altera o bioma ativo conforme o jogador avança no mapa.
+    /// Altera o bioma principal com base na distância percorrida.
     /// </summary>
-    /// <param name="newIndex">Índice do novo bioma na lista.</param>
     private void SetBiome(int newIndex)
     {
         currentBiomeIndex = newIndex;
-        Debug.Log($"Transição de Cenário! Novo Bioma: {biomes[currentBiomeIndex].biomeName}");
+        Debug.Log($"Transição de Bioma: {biomes[currentBiomeIndex].biomeName} | Rota Ativa: {currentRoute}");
     }
 
     /// <summary>
-    /// Retorna as tags dos Chunks de chão do bioma atual para o ChunkSpawner.
+    /// Altera a rota vertical ativa (chamado pelos gatilhos de subida/descida).
+    /// </summary>
+    public void SetRoute(RouteLayer newRoute)
+    {
+        currentRoute = newRoute;
+        Debug.Log($"Rota alterada para: {currentRoute} no bioma {biomes[currentBiomeIndex].biomeName}");
+    }
+
+    /// <summary>
+    /// Retorna as tags dos Chunks correspondentes ao bioma e à rota vertical ativa.
     /// </summary>
     public List<string> GetCurrentGroundChunkTags()
     {
         if (biomes != null && biomes.Count > currentBiomeIndex)
         {
-            return biomes[currentBiomeIndex].groundChunkTags;
+            BiomeData activeBiome = biomes[currentBiomeIndex];
+
+            // Se estiver no teto e houver chunks configurados, retorna os do teto
+            if (currentRoute == RouteLayer.UpperRoof && activeBiome.upperChunkTags != null && activeBiome.upperChunkTags.Count > 0)
+            {
+                return activeBiome.upperChunkTags;
+            }
+
+            // Caso contrário, retorna os chunks da rota térrea padrão
+            return activeBiome.groundChunkTags;
         }
+
         return new List<string>();
+    }
+
+    /// <summary>
+    /// Retorna a altura vertical Y exata onde os blocos da rota ativa devem ser posicionados.
+    /// </summary>
+    public float GetCurrentRouteHeight()
+    {
+        if (biomes != null && biomes.Count > currentBiomeIndex)
+        {
+            BiomeData activeBiome = biomes[currentBiomeIndex];
+
+            if (currentRoute == RouteLayer.UpperRoof)
+            {
+                return activeBiome.upperHeightY;
+            }
+
+            return activeBiome.groundHeightY;
+        }
+
+        return 0f;
     }
 }

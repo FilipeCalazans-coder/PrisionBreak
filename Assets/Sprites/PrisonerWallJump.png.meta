@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: ed927ee0e3e372140b5924137dd9a015
+guid: 0371bdff9088a9e4c9d43d64a7fbea55
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -3108874011771527896
-    second: PrisonerRunning (1)_0
+      213: -7129477723625349116
+    second: PrisonerWallJump_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,101 +113,101 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: PrisonerRunning (1)_0
+      name: PrisonerWallJump_0
       rect:
         serializedVersion: 2
-        x: 2
-        y: 95
+        x: 110
+        y: 2
         width: 52
-        height: 35
+        height: 45
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 82d1aecce8f0bd4d0800000000000000
-      internalID: -3108874011771527896
+      spriteID: 4002041b8c10f0d90800000000000000
+      internalID: -7129477723625349116
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PrisonerRunning (1)_1
+      name: PrisonerWallJump_2
       rect:
         serializedVersion: 2
         x: 56
-        y: 95
+        y: 2
         width: 52
-        height: 35
+        height: 45
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: be07077daf830864c92a98a1086b42a8
-      internalID: 518334761
+      spriteID: 1c2a594e55ab2aa4cac47766b00903f0
+      internalID: -858285681
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PrisonerRunning (1)_2
-      rect:
-        serializedVersion: 2
-        x: 110
-        y: 95
-        width: 52
-        height: 35
-      alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 22928063e44922d4aa0f244cf2a9b550
-      internalID: 1843575897
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PrisonerRunning (1)_3
+      name: PrisonerWallJump_1
       rect:
         serializedVersion: 2
         x: 164
-        y: 95
+        y: 2
         width: 52
-        height: 35
+        height: 45
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 4d1186b242a5be5438df08b973f03971
-      internalID: 1999075376
+      spriteID: e16b70e6fdb7bd24b9ef2d1ad6dcc993
+      internalID: -1856042645
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PrisonerRunning (1)_4
+      name: PrisonerWallJump_3
       rect:
         serializedVersion: 2
-        x: 218
-        y: 95
+        x: 2
+        y: 2
         width: 52
-        height: 35
+        height: 45
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 95ce2cbaf0abec846ac94cd7092fbd0a
+      internalID: 2142199876
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: PrisonerWallJump_4
+      rect:
+        serializedVersion: 2
+        x: 2
+        y: 55
+        width: 52
+        height: 45
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -216,8 +216,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: f2a95022be8f9374e9b09bd6f2077e32
-      internalID: 1205425745
+      spriteID: a3c87d30a6d2c1844b772e9b0fd0a23c
+      internalID: -66315412
       vertices: []
       indices: 
       edges: []
@@ -226,7 +226,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 5bbaaf0147b5ac44aa300e858796fff5
+    spriteID: 3de644d925b32984ab9aa5a9816ce8d5
     internalID: 0
     vertices: []
     indices: 
@@ -236,11 +236,11 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      PrisonerRunning (1)_0: -3108874011771527896
-      PrisonerRunning (1)_1: 518334761
-      PrisonerRunning (1)_2: 1843575897
-      PrisonerRunning (1)_3: 1999075376
-      PrisonerRunning (1)_4: 1205425745
+      PrisonerWallJump_0: -7129477723625349116
+      PrisonerWallJump_1: -1856042645
+      PrisonerWallJump_2: -858285681
+      PrisonerWallJump_3: 2142199876
+      PrisonerWallJump_4: -66315412
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

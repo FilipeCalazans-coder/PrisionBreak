@@ -2,22 +2,19 @@ using UnityEngine;
 
 /// <summary>
 /// Representa um bloco procedural e calcula os limites horizontais reais
-/// (início, fim e largura) considerando múltiplos blocos de chão e buracos.
+/// para permitir encaixe contínuo e perfeito entre os blocos.
 /// </summary>
 public class Chunk : MonoBehaviour
 {
     [Header("Configurações Manuais (Opcional)")]
-    [Tooltip("Se desmarcado, ignora o cálculo automático e usa os valores manuais.")]
+    [Tooltip("Se desmarcado, ignora o cálculo automático e usa o manualWidth.")]
     [SerializeField] private bool autoCalculateBounds = true;
-
     [Tooltip("Largura padrão caso o cálculo automático esteja desativado.")]
     [SerializeField] private float manualWidth = 20f;
 
     /// <summary>
-    /// Retorna os limites horizontais locais do Chunk em relação ao seu próprio centro (Pivot).
+    /// Retorna as bordas horizontais locais em relação ao centro (Pivot) do Chunk.
     /// </summary>
-    /// <param name="minX">Ponto mais à esquerda em coordenadas locais.</param>
-    /// <param name="maxX">Ponto mais à direita em coordenadas locais.</param>
     public void GetLocalHorizontalBounds(out float minX, out float maxX)
     {
         if (!autoCalculateBounds)
@@ -28,14 +25,13 @@ public class Chunk : MonoBehaviour
         }
 
         Collider2D[] colliders = GetComponentsInChildren<Collider2D>();
-        
         bool foundValidCollider = false;
         float worldMinX = float.MaxValue;
         float worldMaxX = float.MinValue;
 
         foreach (Collider2D col in colliders)
         {
-            // Ignora gatilhos (moedas, inimigos, áreas de dano) para medir apenas superfícies sólidas
+            // Mede apenas plataformas sólidas, ignorando moedas, inimigos e gatilhos de câmara
             if (!col.isTrigger)
             {
                 foundValidCollider = true;
@@ -51,18 +47,8 @@ public class Chunk : MonoBehaviour
             return;
         }
 
-        // Converte as coordenadas globais para relativas à posição do Chunk
         minX = worldMinX - transform.position.x;
         maxX = worldMaxX - transform.position.x;
-    }
-
-    /// <summary>
-    /// Retorna a largura total calculada.
-    /// </summary>
-    public float GetChunkWidth()
-    {
-        GetLocalHorizontalBounds(out float minX, out float maxX);
-        return maxX - minX;
     }
 
     private void OnDrawGizmosSelected()
