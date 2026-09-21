@@ -6,8 +6,8 @@ using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 /// <summary>
-/// Controla movimentação, velocidade progressiva e física de pulo cinemática,
-/// permitindo configurar a altura máxima e a velocidade de subida de forma independente.
+/// Controla movimentação, física cinemática unificada de salto e quique (bounce),
+/// mecânica de corrida contínua e sistema de combate com combos.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CapsuleCollider2D))]
@@ -21,50 +21,50 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Taxa de aumento de velocidade por segundo.")]
     [SerializeField] private float speedIncreaseRate = 0.05f;
 
-    [Header("Configurações de Pulo Independente (Altura vs Tempo)")]
-    [Tooltip("Altura exata máxima (em unidades/metros da Unity) que o pulo alcança.")]
+    [Header("Configurações de Salto Independente (Altura vs Tempo)")]
+    [Tooltip("Altura exata máxima (em metros/unidades da Unity) que o salto normal alcança.")]
     [SerializeField] private float jumpHeight = 3.5f;
-    [Tooltip("Tempo em segundos que o personagem leva para sair do chão e atingir o ápice do pulo (menor = mais rápido).")]
+    [Tooltip("Tempo em segundos que o personagem leva para atingir o ápice do salto.")]
     [SerializeField] private float timeToJumpApex = 0.3f;
-    [Tooltip("Multiplicador de gravidade durante a queda (adiciona peso na descida).")]
+    [Tooltip("Multiplicador de gravidade durante a descida (adiciona peso na queda).")]
     [SerializeField] private float fallMultiplier = 2.5f;
 
+    [Header("Configurações de Quique Cinemático (Bounce / Stomp)")]
+    [Tooltip("Altura exata (em metros) que o jogador atinge ao quicar em um inimigo ou após o Ground Pound.")]
+    [SerializeField] private float bounceHeight = 3.5f;
+
+    [Header("Buffer de Entrada (Responsividade do Salto)")]
+    [Tooltip("Tempo em segundos que o jogo lembra que você apertou para pular antes de tocar no chão.")]
+    [SerializeField] private float jumpBufferDuration = 0.15f;
+
     [Header("Configurações de Ground Pound")]
-    [Tooltip("Força descendente vertical aplicada durante a queda do Ground Pound.")]
+    [Tooltip("Força vertical aplicada durante a queda rápida do Ground Pound.")]
     [SerializeField] private float groundPoundForce = 25f;
 
     [Header("Configurações de Wall Jump")]
-    [Tooltip("Ponto frontal para detectar contato com a parede.")]
+    [Tooltip("Ponto frontal para detetar a parede escalável.")]
     [SerializeField] private Transform wallCheck;
-    [Tooltip("Raio de detecção da parede.")]
     [SerializeField] private float wallCheckRadius = 0.2f;
-    [Tooltip("Camada (Layer) correspondente às paredes escaláveis.")]
     [SerializeField] private LayerMask wallLayer;
-    [Tooltip("Velocidade máxima de descida enquanto escorrega na parede.")]
     [SerializeField] private float wallSlideSpeed = 2f;
-    [Tooltip("Força horizontal (X) e vertical (Y) aplicadas ao realizar o Wall Jump.")]
     [SerializeField] private Vector2 wallJumpForce = new Vector2(-4f, 11f);
-    [Tooltip("Tempo em que o controle horizontal fica bloqueado para dar espaço ao pulo.")]
     [SerializeField] private float wallJumpDuration = 0.25f;
 
-    [Header("Configurações de Ataque")]
+    [Header("Configurações de Ataque e Combo")]
     [Tooltip("Hitbox filha para colisão do golpe.")]
     [SerializeField] private GameObject attackHitboxObject;
-    [Tooltip("Tempo em segundos que a hitbox fica ativa.")]
-    [SerializeField] private float attackDuration = 0.2f;
-
-    [Header("Configurações de Impacto (Bounce)")]
-    [Tooltip("Força vertical ao quicar em um inimigo.")]
-    [SerializeField] private float bounceForce = 8f;
+    [Tooltip("Duração de cada golpe em segundos.")]
+    [SerializeField] private float attackStepDuration = 0.25f;
+    [Tooltip("Tempo extra de tolerância após o primeiro soco para aceitar o segundo soco.")]
+    [SerializeField] private float comboWindowGraceTime = 0.15f;
+    [Tooltip("Permite desferir socos enquanto estiver no ar.")]
+    [SerializeField] private bool canAttackInAir = true;
 
     [Header("Configurações de Slide & Dash")]
-    [Tooltip("Duração do slide em segundos.")]
     [SerializeField] private float slideDuration = 0.8f;
-    [Tooltip("Velocidade adicional horizontal durante o slide.")]
     [SerializeField] private float dashBonusSpeed = 5f;
 
     [Header("Sensibilidade de Toque (Mobile)")]
-    [Tooltip("Distância mínima em pixels para validar o gesto imediatamente.")]
     [SerializeField] private float minSwipeDistance = 15f;
 
     [Header("Verificação de Chão")]
@@ -77,11 +77,15 @@ public class PlayerController : MonoBehaviour
     private CapsuleCollider2D capsuleCollider;
     private Animator animator;
 
-    // Variáveis cinemáticas calculadas
+    // Variáveis físicas calculadas
     private float calculatedGravity;
     private float calculatedInitialJumpVelocity;
+    private float calculatedBounceVelocity;
 
-    // Cache de parâmetros do Animator
+    // Temporizador do Jump Buffer
+    private float jumpBufferTimer = 0f;
+
+    // Cache de hashes do Animator
     private HashSet<int> existingAnimatorParams = new HashSet<int>();
     private readonly int isGroundedHash = Animator.StringToHash("isGrounded");
     private readonly int isSlidingHash = Animator.StringToHash("isSliding");
@@ -89,10 +93,11 @@ public class PlayerController : MonoBehaviour
     private readonly int groundPoundImpactHash = Animator.StringToHash("GroundPoundImpact");
     private readonly int isWallSlidingHash = Animator.StringToHash("isWallSliding");
     private readonly int wallJumpTriggerHash = Animator.StringToHash("WallJump");
-    private readonly int attackTriggerHash = Animator.StringToHash("Attack");
+    private readonly int attack1TriggerHash = Animator.StringToHash("Attack1");
+    private readonly int attack2TriggerHash = Animator.StringToHash("Attack2");
     private readonly int animSpeedHash = Animator.StringToHash("animSpeed");
 
-    // Estados de movimento e física
+    // Estados de movimento
     private float currentRunSpeed;
     private bool isGrounded;
     private bool isTouchingWall;
@@ -100,16 +105,19 @@ public class PlayerController : MonoBehaviour
     private bool isWallJumping;
     private bool isSliding;
     private bool isGroundPounding;
-    private bool isAttacking;
+
+    // Estados de combate
+    private int comboStep = 0;
+    private bool canCombo = false;
+    private bool bufferNextAttack = false;
+    private Coroutine currentComboCoroutine;
 
     public bool IsGroundPounding => isGroundPounding;
     public float CurrentRunSpeed => currentRunSpeed;
 
-    // Dimensões do colisor
     private Vector2 originalColliderSize;
     private Vector2 originalColliderOffset;
 
-    // Controle de gestos táteis em tempo real
     private Vector2 startTouchPos;
     private bool isTouching;
     private bool gestureConsumed;
@@ -134,20 +142,18 @@ public class PlayerController : MonoBehaviour
 
         if (attackHitboxObject != null) attackHitboxObject.SetActive(false);
 
-        // Calcula a física exata baseada na altura e tempo desejados
         RecalculateJumpPhysics();
-
         CacheAnimatorParameters();
     }
 
     private void OnValidate()
     {
-        // Permite recalcular as fórmulas mesmo alterando os valores no Inspector durante o teste
         RecalculateJumpPhysics();
     }
 
     /// <summary>
-    /// Calcula a gravidade e o impulso inicial com base na cinemática clássica (Torricelli).
+    /// Calcula a gravidade, a velocidade do pulo padrão e a velocidade de quique (bounce)
+    /// com base nas equações cinemáticas clássicas.
     /// </summary>
     private void RecalculateJumpPhysics()
     {
@@ -156,12 +162,14 @@ public class PlayerController : MonoBehaviour
         // g = (2 * altura) / (tempo^2)
         calculatedGravity = (2f * jumpHeight) / Mathf.Pow(timeToJumpApex, 2f);
 
-        // v0 = g * tempo
+        // v0_pulo = g * tempo
         calculatedInitialJumpVelocity = calculatedGravity * timeToJumpApex;
+
+        // v0_bounce = raiz(2 * g * altura_bounce)
+        calculatedBounceVelocity = Mathf.Sqrt(2f * calculatedGravity * bounceHeight);
 
         if (rb != null)
         {
-            // Ajusta o GravityScale relativo à gravidade padrão da Unity (-9.81)
             float standardGravityMagnitude = Mathf.Abs(Physics2D.gravity.y);
             if (standardGravityMagnitude > 0.01f)
             {
@@ -186,12 +194,12 @@ public class PlayerController : MonoBehaviour
         UpdateProgressiveSpeed();
         HandleInputLifecycle();
         CheckSurroundings();
+        ProcessBufferedJump();
         UpdateAnimator();
     }
 
     private void FixedUpdate()
     {
-        // Movimentação horizontal contínua
         if (!isWallJumping)
         {
             float activeSpeed = currentRunSpeed;
@@ -199,11 +207,9 @@ public class PlayerController : MonoBehaviour
             {
                 activeSpeed += dashBonusSpeed;
             }
-
             rb.linearVelocity = new Vector2(activeSpeed, rb.linearVelocity.y);
         }
 
-        // Física na parede e na queda
         if (isWallSliding)
         {
             if (rb.linearVelocity.y < -wallSlideSpeed)
@@ -227,7 +233,6 @@ public class PlayerController : MonoBehaviour
             if (isGrounded && !wasGrounded)
             {
                 isWallJumping = false;
-
                 if (isGroundPounding)
                 {
                     TriggerGroundPoundImpact();
@@ -243,24 +248,30 @@ public class PlayerController : MonoBehaviour
         isWallSliding = isTouchingWall && !isGrounded && rb.linearVelocity.y < 0.1f && !isGroundPounding;
     }
 
-    /// <summary>
-    /// Aplica o pulo no exato frame do comando.
-    /// </summary>
-    private void ExecuteImmediateJump()
+    private void RequestJump()
     {
         if (isGroundPounding) return;
+        jumpBufferTimer = jumpBufferDuration;
+    }
 
-        // 1. Pulo na parede (Wall Jump)
-        if (isWallSliding || (isTouchingWall && !isGrounded))
+    private void ProcessBufferedJump()
+    {
+        if (jumpBufferTimer > 0f)
         {
-            StartCoroutine(WallJumpRoutine());
-            return;
-        }
+            jumpBufferTimer -= Time.deltaTime;
 
-        // 2. Pulo no chão: aplica a velocidade calculada para atingir o jumpHeight
-        if (isGrounded)
-        {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, calculatedInitialJumpVelocity);
+            if (isWallSliding || (isTouchingWall && !isGrounded))
+            {
+                jumpBufferTimer = 0f;
+                StartCoroutine(WallJumpRoutine());
+                return;
+            }
+
+            if (isGrounded)
+            {
+                jumpBufferTimer = 0f;
+                rb.linearVelocity = new Vector2(rb.linearVelocity.x, calculatedInitialJumpVelocity);
+            }
         }
     }
 
@@ -275,20 +286,29 @@ public class PlayerController : MonoBehaviour
         }
 
         rb.linearVelocity = wallJumpForce;
-
         yield return new WaitForSeconds(wallJumpDuration);
-
         isWallJumping = false;
     }
 
     public void TriggerGroundPoundImpact()
     {
         isGroundPounding = false;
-
         if (animator != null && existingAnimatorParams.Contains(groundPoundImpactHash))
         {
             animator.SetTrigger(groundPoundImpactHash);
         }
+    }
+
+    /// <summary>
+    /// Aplica o quique cinemático no jogador (ao pisar em inimigo ou impacto de Ground Pound).
+    /// Utiliza a mesma gravidade e fórmula física do pulo padrão.
+    /// </summary>
+    public void Bounce()
+    {
+        isGroundPounding = false;
+
+        // Zera a velocidade vertical residual antes de aplicar o impulso cinemático
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, calculatedBounceVelocity);
     }
 
     private void UpdateProgressiveSpeed()
@@ -308,7 +328,6 @@ public class PlayerController : MonoBehaviour
     {
         if (isGroundPounding || isGrounded || isWallSliding) return;
 
-        // Se o personagem estiver na trajetória de descida, adiciona o peso extra
         if (rb.linearVelocity.y < 0f)
         {
             rb.linearVelocity += Vector2.up * Physics2D.gravity.y * (fallMultiplier - 1f) * Time.fixedDeltaTime;
@@ -319,7 +338,7 @@ public class PlayerController : MonoBehaviour
     {
         if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
         {
-            ExecuteImmediateJump();
+            RequestJump();
         }
 
         if (Touch.activeTouches.Count > 0)
@@ -371,7 +390,7 @@ public class PlayerController : MonoBehaviour
         if (deltaY >= minSwipeDistance)
         {
             gestureConsumed = true;
-            ExecuteImmediateJump();
+            RequestJump();
         }
         else if (deltaY <= -minSwipeDistance)
         {
@@ -396,39 +415,91 @@ public class PlayerController : MonoBehaviour
             float deltaY = endPos.y - startTouchPos.y;
             if (Mathf.Abs(deltaY) < minSwipeDistance)
             {
-                TriggerAttack();
+                RegisterAttackInput();
             }
         }
     }
 
-    public void TriggerAttack()
+    public void RegisterAttackInput()
     {
-        if (isAttacking || isGroundPounding) return;
-        StartCoroutine(AttackRoutine());
+        if (isGroundPounding) return;
+        if (!isGrounded && !canAttackInAir) return;
+
+        if (comboStep == 0)
+        {
+            currentComboCoroutine = StartCoroutine(ComboSequenceRoutine());
+        }
+        else if (comboStep == 1 && canCombo)
+        {
+            bufferNextAttack = true;
+        }
     }
 
-    private IEnumerator AttackRoutine()
+    private IEnumerator ComboSequenceRoutine()
     {
-        isAttacking = true;
+        comboStep = 1;
+        bufferNextAttack = false;
+        canCombo = true;
 
-        if (animator != null && existingAnimatorParams.Contains(attackTriggerHash))
+        if (animator != null && existingAnimatorParams.Contains(attack1TriggerHash))
         {
-            animator.SetTrigger(attackTriggerHash);
+            animator.ResetTrigger(attack2TriggerHash);
+            animator.SetTrigger(attack1TriggerHash);
         }
 
         if (attackHitboxObject != null) attackHitboxObject.SetActive(true);
 
-        yield return new WaitForSeconds(attackDuration);
+        float timer = 0f;
+        while (timer < attackStepDuration)
+        {
+            timer += Time.deltaTime;
+            yield return null;
+        }
 
-        if (attackHitboxObject != null) attackHitboxObject.SetActive(false);
+        if (!bufferNextAttack && comboWindowGraceTime > 0f)
+        {
+            if (attackHitboxObject != null) attackHitboxObject.SetActive(false);
 
-        isAttacking = false;
+            float graceTimer = 0f;
+            while (graceTimer < comboWindowGraceTime && !bufferNextAttack)
+            {
+                graceTimer += Time.deltaTime;
+                yield return null;
+            }
+        }
+
+        if (bufferNextAttack)
+        {
+            comboStep = 2;
+            canCombo = false;
+            bufferNextAttack = false;
+
+            if (animator != null && existingAnimatorParams.Contains(attack2TriggerHash))
+            {
+                animator.ResetTrigger(attack1TriggerHash);
+                animator.SetTrigger(attack2TriggerHash);
+            }
+
+            if (attackHitboxObject != null) attackHitboxObject.SetActive(true);
+
+            timer = 0f;
+            while (timer < attackStepDuration)
+            {
+                timer += Time.deltaTime;
+                yield return null;
+            }
+        }
+
+        ResetComboState();
     }
 
-    public void Bounce()
+    private void ResetComboState()
     {
-        isGroundPounding = false;
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, bounceForce);
+        if (attackHitboxObject != null) attackHitboxObject.SetActive(false);
+        comboStep = 0;
+        canCombo = false;
+        bufferNextAttack = false;
+        currentComboCoroutine = null;
     }
 
     private void ExecuteGroundPound()
@@ -436,16 +507,14 @@ public class PlayerController : MonoBehaviour
         if (isGroundPounding) return;
         isGroundPounding = true;
 
-        if (isAttacking)
+        if (currentComboCoroutine != null)
         {
-            StopAllCoroutines();
-            if (attackHitboxObject != null) attackHitboxObject.SetActive(false);
-            isAttacking = false;
+            StopCoroutine(currentComboCoroutine);
         }
+        ResetComboState();
 
         if (isSliding)
         {
-            StopAllCoroutines();
             ResetCollider();
             isSliding = false;
         }
@@ -462,7 +531,6 @@ public class PlayerController : MonoBehaviour
     private IEnumerator SlideRoutine()
     {
         isSliding = true;
-
         if (capsuleCollider != null)
         {
             capsuleCollider.size = new Vector2(originalColliderSize.x, originalColliderSize.y * 0.5f);

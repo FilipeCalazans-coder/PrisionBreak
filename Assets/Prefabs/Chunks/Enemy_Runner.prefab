@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 7952944674956694832}
   - component: {fileID: 7389517304343007135}
   - component: {fileID: 6375760183312353137}
-  - component: {fileID: 4851453962469386030}
   - component: {fileID: 4566600585738099100}
   - component: {fileID: 7859329472976303960}
   - component: {fileID: 5576110865152495854}
@@ -124,19 +123,6 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 4
---- !u!114 &4851453962469386030
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 13351393193335442}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b4b726390345c734daeb3af9458ac36a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RunnerEnemy
-  moveSpeed: 4
 --- !u!70 &4566600585738099100
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -200,6 +186,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Obstacle
   playerTag: Player
+  canBeStomped: 1
+  stompThreshold: 0.2
 --- !u!114 &4462576116733441253
 MonoBehaviour:
   m_ObjectHideFlags: 0
