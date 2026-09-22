@@ -1,27 +1,32 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using TMPro;
 
 /// <summary>
-/// Gerencia os estados globais do jogo: Menu Inicial, Partida Ativa e Game Over.
-/// Controla o fluxo de tempo e a exibição dos painéis da interface.
+/// Controla o fluxo de telas, exibe dados salvos e gerencia os botoes de upgrade no Menu Inicial.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
-    // Instância estática para acesso global fácil (Padrão Singleton)
     public static GameManager Instance;
 
-    [Header("Painéis de Interface (UI)")]
-    [Tooltip("Referência ao GameObject do Painel de Menu Inicial no Canvas.")]
+    [Header("Paineis de Interface (UI)")]
     [SerializeField] private GameObject startMenuPanel;
-
-    [Tooltip("Referência ao GameObject do Painel de Game Over no Canvas.")]
     [SerializeField] private GameObject gameOverPanel;
-
-    [Header("Interface Durante a Partida (HUD)")]
-    [Tooltip("Objeto que contém a pontuação e moedas durante o jogo (opcional).")]
     [SerializeField] private GameObject inGameHUD;
 
-    // Variáveis internas de controle
+    [Header("Textos do Menu Inicial")]
+    [SerializeField] private TextMeshProUGUI startMenuTotalCoinsText;
+    [Tooltip("Texto do botao/painel de upgrade de vida.")]
+    [SerializeField] private TextMeshProUGUI healthUpgradeButtonText;
+    [Tooltip("Texto do botao/painel de upgrade de dano.")]
+    [SerializeField] private TextMeshProUGUI damageUpgradeButtonText;
+
+    [Header("Textos do Painel de Game Over")]
+    [SerializeField] private TextMeshProUGUI finalCoinsText;
+    [SerializeField] private TextMeshProUGUI finalDistanceText;
+    [SerializeField] private TextMeshProUGUI finalHighScoreText;
+    [SerializeField] private TextMeshProUGUI finalEnemiesText;
+
     private bool isGameStarted = false;
     private bool isGameOver = false;
 
@@ -30,7 +35,6 @@ public class GameManager : MonoBehaviour
 
     private void Awake()
     {
-        // Garante que só existe um GameManager na cena
         if (Instance == null)
         {
             Instance = this;
@@ -44,62 +48,113 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        // 1. Inicia o jogo no estado de Menu Inicial
         SetupStartMenu();
     }
 
-    /// <summary>
-    /// Prepara a tela inicial pausando o jogo até o jogador clicar em Jogar.
-    /// </summary>
     private void SetupStartMenu()
     {
         isGameStarted = false;
         isGameOver = false;
-
-        // Congela o tempo para o jogador não correr antes da hora
         Time.timeScale = 0f;
 
-        // Exibe o menu inicial e oculta as outras telas
+        UpdateStartMenuUI();
+
         if (startMenuPanel != null) startMenuPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         if (inGameHUD != null) inGameHUD.SetActive(false);
     }
 
     /// <summary>
-    /// Inicia a corrida ao clicar no botão 'Jogar'.
-    /// Método vinculado ao botão da UI.
+    /// Atualiza todos os textos do menu inicial (moedas, vida e dano).
     /// </summary>
+    public void UpdateStartMenuUI()
+    {
+        if (ScoreManager.Instance != null && startMenuTotalCoinsText != null)
+        {
+            startMenuTotalCoinsText.text = $"Moedas: {ScoreManager.Instance.TotalSavedCoins}";
+        }
+
+        if (UpgradeManager.Instance != null)
+        {
+            if (healthUpgradeButtonText != null)
+            {
+                healthUpgradeButtonText.text = $"Vida: {UpgradeManager.Instance.CurrentHealth} (Nv.{UpgradeManager.Instance.CurrentHealthLevel})\nCusto: {UpgradeManager.Instance.GetHealthUpgradeCost()}";
+            }
+
+            if (damageUpgradeButtonText != null)
+            {
+                damageUpgradeButtonText.text = $"Dano: {UpgradeManager.Instance.CurrentDamage} (Nv.{UpgradeManager.Instance.CurrentDamageLevel})\nCusto: {UpgradeManager.Instance.GetDamageUpgradeCost()}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Metodo chamado pelo botao de upgrade de Vida na UI.
+    /// </summary>
+    public void BuyHealthUpgrade()
+    {
+        if (UpgradeManager.Instance != null && UpgradeManager.Instance.TryUpgradeHealth())
+        {
+            UpdateStartMenuUI();
+        }
+    }
+
+    /// <summary>
+    /// Metodo chamado pelo botao de upgrade de Dano na UI.
+    /// </summary>
+    public void BuyDamageUpgrade()
+    {
+        if (UpgradeManager.Instance != null && UpgradeManager.Instance.TryUpgradeDamage())
+        {
+            UpdateStartMenuUI();
+        }
+    }
+
     public void StartGame()
     {
         isGameStarted = true;
-
-        // Descongela a física e o movimento do jogo
         Time.timeScale = 1f;
 
-        // Oculta o menu e exibe a HUD de pontos/moedas
         if (startMenuPanel != null) startMenuPanel.SetActive(false);
         if (inGameHUD != null) inGameHUD.SetActive(true);
     }
 
-    /// <summary>
-    /// Pausa o jogo e exibe a tela de derrota quando o jogador colide.
-    /// </summary>
     public void GameOver()
     {
         if (isGameOver) return;
         isGameOver = true;
 
-        // Congela o tempo da física
+        if (ScoreManager.Instance != null)
+        {
+            ScoreManager.Instance.StopCounting();
+            ScoreManager.Instance.SaveSessionData();
+        }
+
+        UpdateGameOverUI();
+
         Time.timeScale = 0f;
 
-        // Oculta o HUD e exibe o Game Over
         if (inGameHUD != null) inGameHUD.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
     }
 
-    /// <summary>
-    /// Reinicia a partida recarregando a cena ativa.
-    /// </summary>
+    private void UpdateGameOverUI()
+    {
+        if (ScoreManager.Instance == null) return;
+
+        if (finalCoinsText != null)
+            finalCoinsText.text = $"Moedas: {ScoreManager.Instance.CurrentCoins}";
+
+        if (finalDistanceText != null)
+            finalDistanceText.text = $"Distancia: {ScoreManager.Instance.CurrentDistance} m";
+
+        if (finalHighScoreText != null)
+            finalHighScoreText.text = $"Recorde: {ScoreManager.Instance.HighScoreDistance} m";
+
+        if (finalEnemiesText != null)
+            finalEnemiesText.text = $"Inimigos Derrotados: {ScoreManager.Instance.DefeatedEnemies}";
+    }
+
     public void RestartGame()
     {
         Time.timeScale = 1f;

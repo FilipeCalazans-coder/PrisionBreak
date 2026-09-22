@@ -1,30 +1,34 @@
 using UnityEngine;
 
 /// <summary>
-/// Detecta e aplica dano EXCLUSIVAMENTE a inimigos que entram no alcance do golpe.
-/// Ignora obstáculos inanimados como espinhos e armadilhas.
+/// Aplica dano a inimigos considerando o nivel de dano do UpgradeManager
+/// e dispara um tremor leve na câmara ao conectar o golpe.
 /// </summary>
 public class AttackHitbox : MonoBehaviour
 {
     [Header("Configurações do Golpe")]
-    [Tooltip("Quantidade de dano aplicada a cada acerto.")]
-    [SerializeField] private int attackDamage = 1;
-
+    [Tooltip("Dano padrão caso o UpgradeManager não esteja ativo.")]
+    [SerializeField] private int fallbackDamage = 1;
     [Tooltip("Tag obrigatória do alvo para receber o dano.")]
     [SerializeField] private string enemyTag = "Enemy";
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        // 1. Filtra rigorosamente: se NÃO for um inimigo, ignora completamente
         if (!other.CompareTag(enemyTag)) return;
 
-        // 2. Busca o componente de vida do inimigo e aplica o dano
         Health enemyHealth = other.GetComponent<Health>();
-
         if (enemyHealth != null)
         {
-            enemyHealth.TakeDamage(attackDamage);
-            Debug.Log($"Ataque acertou o inimigo: {other.gameObject.name}");
+            int finalDamage = (UpgradeManager.Instance != null) ? UpgradeManager.Instance.CurrentDamage : fallbackDamage;
+            enemyHealth.TakeDamage(finalDamage);
+
+            // Dispara um tremor curto e leve para dar peso ao soco!
+            if (ScreenDamageFX.Instance != null)
+            {
+                ScreenDamageFX.Instance.TriggerShake(0.12f, 0.15f);
+            }
+
+            Debug.Log($"Ataque acertou {other.gameObject.name} causando {finalDamage} de dano!");
         }
     }
 }

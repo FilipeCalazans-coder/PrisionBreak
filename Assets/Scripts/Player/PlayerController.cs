@@ -6,43 +6,33 @@ using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 /// <summary>
-/// Controla movimentação, física cinemática unificada de salto e quique (bounce),
-/// mecânica de corrida contínua e sistema de combate com combos.
+/// Controla movimentacao, fisica cinematica, combate com upgrades de dano
+/// e sistema de pontos de vida com invulnerabilidade temporaria.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CapsuleCollider2D))]
 public class PlayerController : MonoBehaviour
 {
     [Header("Configurações de Velocidade Progressiva")]
-    [Tooltip("Velocidade inicial de corrida do jogador.")]
     [SerializeField] private float initialRunSpeed = 4f;
-    [Tooltip("Velocidade máxima que o jogador pode atingir.")]
     [SerializeField] private float maxRunSpeed = 12f;
-    [Tooltip("Taxa de aumento de velocidade por segundo.")]
     [SerializeField] private float speedIncreaseRate = 0.05f;
 
-    [Header("Configurações de Salto Independente (Altura vs Tempo)")]
-    [Tooltip("Altura exata máxima (em metros/unidades da Unity) que o salto normal alcança.")]
+    [Header("Configurações de Salto Independente")]
     [SerializeField] private float jumpHeight = 3.5f;
-    [Tooltip("Tempo em segundos que o personagem leva para atingir o ápice do salto.")]
     [SerializeField] private float timeToJumpApex = 0.3f;
-    [Tooltip("Multiplicador de gravidade durante a descida (adiciona peso na queda).")]
     [SerializeField] private float fallMultiplier = 2.5f;
 
-    [Header("Configurações de Quique Cinemático (Bounce / Stomp)")]
-    [Tooltip("Altura exata (em metros) que o jogador atinge ao quicar em um inimigo ou após o Ground Pound.")]
+    [Header("Configurações de Quique Cinemático (Bounce)")]
     [SerializeField] private float bounceHeight = 3.5f;
 
-    [Header("Buffer de Entrada (Responsividade do Salto)")]
-    [Tooltip("Tempo em segundos que o jogo lembra que você apertou para pular antes de tocar no chão.")]
+    [Header("Buffer de Entrada")]
     [SerializeField] private float jumpBufferDuration = 0.15f;
 
     [Header("Configurações de Ground Pound")]
-    [Tooltip("Força vertical aplicada durante a queda rápida do Ground Pound.")]
     [SerializeField] private float groundPoundForce = 25f;
 
     [Header("Configurações de Wall Jump")]
-    [Tooltip("Ponto frontal para detetar a parede escalável.")]
     [SerializeField] private Transform wallCheck;
     [SerializeField] private float wallCheckRadius = 0.2f;
     [SerializeField] private LayerMask wallLayer;
@@ -51,20 +41,20 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float wallJumpDuration = 0.25f;
 
     [Header("Configurações de Ataque e Combo")]
-    [Tooltip("Hitbox filha para colisão do golpe.")]
     [SerializeField] private GameObject attackHitboxObject;
-    [Tooltip("Duração de cada golpe em segundos.")]
     [SerializeField] private float attackStepDuration = 0.25f;
-    [Tooltip("Tempo extra de tolerância após o primeiro soco para aceitar o segundo soco.")]
     [SerializeField] private float comboWindowGraceTime = 0.15f;
-    [Tooltip("Permite desferir socos enquanto estiver no ar.")]
     [SerializeField] private bool canAttackInAir = true;
 
     [Header("Configurações de Slide & Dash")]
     [SerializeField] private float slideDuration = 0.8f;
     [SerializeField] private float dashBonusSpeed = 5f;
 
-    [Header("Sensibilidade de Toque (Mobile)")]
+    [Header("Configurações de Invulnerabilidade ao Tomar Dano")]
+    [Tooltip("Tempo em segundos que o jogador fica invulneravel apos tomar um golpe.")]
+    [SerializeField] private float invulnerabilityDuration = 1.2f;
+
+    [Header("Sensibilidade de Toque")]
     [SerializeField] private float minSwipeDistance = 15f;
 
     [Header("Verificação de Chão")]
@@ -76,16 +66,19 @@ public class PlayerController : MonoBehaviour
     private Rigidbody2D rb;
     private CapsuleCollider2D capsuleCollider;
     private Animator animator;
+    private SpriteRenderer spriteRenderer;
 
-    // Variáveis físicas calculadas
+    // Vida e Invulnerabilidade
+    private int currentHealth;
+    private bool isInvulnerable = false;
+
+    // Variaveis de fisica
     private float calculatedGravity;
     private float calculatedInitialJumpVelocity;
     private float calculatedBounceVelocity;
-
-    // Temporizador do Jump Buffer
     private float jumpBufferTimer = 0f;
 
-    // Cache de hashes do Animator
+    // Cache do Animator
     private HashSet<int> existingAnimatorParams = new HashSet<int>();
     private readonly int isGroundedHash = Animator.StringToHash("isGrounded");
     private readonly int isSlidingHash = Animator.StringToHash("isSliding");
@@ -97,7 +90,7 @@ public class PlayerController : MonoBehaviour
     private readonly int attack2TriggerHash = Animator.StringToHash("Attack2");
     private readonly int animSpeedHash = Animator.StringToHash("animSpeed");
 
-    // Estados de movimento
+    // Estados
     private float currentRunSpeed;
     private bool isGrounded;
     private bool isTouchingWall;
@@ -106,7 +99,7 @@ public class PlayerController : MonoBehaviour
     private bool isSliding;
     private bool isGroundPounding;
 
-    // Estados de combate
+    // Combate
     private int comboStep = 0;
     private bool canCombo = false;
     private bool bufferNextAttack = false;
@@ -114,6 +107,7 @@ public class PlayerController : MonoBehaviour
 
     public bool IsGroundPounding => isGroundPounding;
     public float CurrentRunSpeed => currentRunSpeed;
+    public int CurrentHealth => currentHealth;
 
     private Vector2 originalColliderSize;
     private Vector2 originalColliderOffset;
@@ -127,6 +121,7 @@ public class PlayerController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         capsuleCollider = GetComponent<CapsuleCollider2D>();
         animator = GetComponent<Animator>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
 
         if (capsuleCollider != null)
         {
@@ -146,26 +141,31 @@ public class PlayerController : MonoBehaviour
         CacheAnimatorParameters();
     }
 
+    private int maxHealth; // Adiciona esta variável para registrar a vida total
+
+    private void Start()
+    {
+        // Define a vida máxima com base nas melhorias do UpgradeManager ou 1
+        maxHealth = (UpgradeManager.Instance != null) ? UpgradeManager.Instance.CurrentHealth : 1;
+        currentHealth = maxHealth;
+
+        // Atualiza a barra de vida inicial na HUD
+        if (HealthBarUI.Instance != null)
+        {
+            HealthBarUI.Instance.UpdateHealth(currentHealth, maxHealth);
+        }
+    }
+
     private void OnValidate()
     {
         RecalculateJumpPhysics();
     }
 
-    /// <summary>
-    /// Calcula a gravidade, a velocidade do pulo padrão e a velocidade de quique (bounce)
-    /// com base nas equações cinemáticas clássicas.
-    /// </summary>
     private void RecalculateJumpPhysics()
     {
         if (timeToJumpApex <= 0.01f) timeToJumpApex = 0.01f;
-
-        // g = (2 * altura) / (tempo^2)
         calculatedGravity = (2f * jumpHeight) / Mathf.Pow(timeToJumpApex, 2f);
-
-        // v0_pulo = g * tempo
         calculatedInitialJumpVelocity = calculatedGravity * timeToJumpApex;
-
-        // v0_bounce = raiz(2 * g * altura_bounce)
         calculatedBounceVelocity = Mathf.Sqrt(2f * calculatedGravity * bounceHeight);
 
         if (rb != null)
@@ -248,6 +248,67 @@ public class PlayerController : MonoBehaviour
         isWallSliding = isTouchingWall && !isGrounded && rb.linearVelocity.y < 0.1f && !isGroundPounding;
     }
 
+    /// <summary>
+    /// Aplica dano ao jogador e verifica Game Over ou ativa invulnerabilidade.
+    /// </summary>
+    /// <summary>
+    /// Aplica dano ao jogador, aciona o flash vermelho, treme a câmara e atualiza a barra.
+    /// </summary>
+    public void TakeDamage(int damageAmount)
+    {
+        if (isInvulnerable) return;
+
+        currentHealth -= damageAmount;
+        Debug.Log($"Jogador tomou dano! Vida restante: {currentHealth}");
+
+        // 1. Atualiza a barra de vida visual
+        if (HealthBarUI.Instance != null)
+        {
+            HealthBarUI.Instance.UpdateHealth(currentHealth, maxHealth);
+        }
+
+        // 2. Aciona o tremor forte e o flash vermelho no ecrã
+        if (ScreenDamageFX.Instance != null)
+        {
+            ScreenDamageFX.Instance.TriggerShake(0.3f, 0.35f); // 0.3 segundos, intensidade 0.35
+            ScreenDamageFX.Instance.TriggerRedFlash();
+        }
+
+        // 3. Avalia derrota ou invulnerabilidade
+        if (currentHealth <= 0)
+        {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.GameOver();
+            }
+        }
+        else
+        {
+            StartCoroutine(InvulnerabilityRoutine());
+        }
+    }
+
+    private IEnumerator InvulnerabilityRoutine()
+    {
+        isInvulnerable = true;
+        float elapsed = 0f;
+        float flashInterval = 0.1f;
+
+        // Efeito visual de piscar o sprite
+        while (elapsed < invulnerabilityDuration)
+        {
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.enabled = !spriteRenderer.enabled;
+            }
+            yield return new WaitForSeconds(flashInterval);
+            elapsed += flashInterval;
+        }
+
+        if (spriteRenderer != null) spriteRenderer.enabled = true;
+        isInvulnerable = false;
+    }
+
     private void RequestJump()
     {
         if (isGroundPounding) return;
@@ -299,15 +360,9 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Aplica o quique cinemático no jogador (ao pisar em inimigo ou impacto de Ground Pound).
-    /// Utiliza a mesma gravidade e fórmula física do pulo padrão.
-    /// </summary>
     public void Bounce()
     {
         isGroundPounding = false;
-
-        // Zera a velocidade vertical residual antes de aplicar o impulso cinemático
         rb.linearVelocity = new Vector2(rb.linearVelocity.x, calculatedBounceVelocity);
     }
 

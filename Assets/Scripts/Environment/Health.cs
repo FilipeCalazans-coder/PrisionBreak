@@ -5,27 +5,24 @@ using UnityEngine;
 /// </summary>
 public class Health : MonoBehaviour
 {
-    [Header("Configurações de Vida")]
-    [Tooltip("Quantidade máxima e inicial de vida do inimigo.")]
+    [Header("Configuracoes de Vida")]
+    [Tooltip("Quantidade maxima e inicial de vida do inimigo.")]
     [SerializeField] private int maxHealth = 1;
 
-    // Vida atual em tempo de execução
     private int currentHealth;
 
     private void OnEnable()
     {
-        // Reseta a vida para o valor máximo sempre que o inimigo for ativado pelo ObjectPooler
         currentHealth = maxHealth;
     }
 
     /// <summary>
-    /// Aplica dano ao inimigo e verifica se ele deve ser destruído.
+    /// Aplica dano ao inimigo e verifica se ele deve ser destruido.
     /// </summary>
     /// <param name="damageAmount">Quantidade de dano a subtrair.</param>
     public void TakeDamage(int damageAmount)
     {
         currentHealth -= damageAmount;
-        Debug.Log($"{gameObject.name} recebeu {damageAmount} de dano! Vida restante: {currentHealth}");
 
         if (currentHealth <= 0)
         {
@@ -34,11 +31,16 @@ public class Health : MonoBehaviour
     }
 
     /// <summary>
-    /// Executa a morte do inimigo (desativa o objeto para o Object Pooler).
+    /// Executa a morte do inimigo, notifica o ScoreManager e desativa o GameObject para o Pooler.
     /// </summary>
     private void Die()
     {
-        Debug.Log($"{gameObject.name} foi derrotado!");
+        // Notifica o ScoreManager que um inimigo foi derrotado
+        if (ScoreManager.Instance != null)
+        {
+            ScoreManager.Instance.AddDefeatedEnemy(1);
+        }
+
         gameObject.SetActive(false);
     }
 }
