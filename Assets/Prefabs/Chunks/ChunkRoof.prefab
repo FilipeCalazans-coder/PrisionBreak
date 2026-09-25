@@ -387,6 +387,7 @@ MonoBehaviour:
   playerTag: Player
   canBeStomped: 1
   stompThreshold: 0.2
+  damageToPlayer: 1
 --- !u!114 &7382791055331316491
 MonoBehaviour:
   m_ObjectHideFlags: 0

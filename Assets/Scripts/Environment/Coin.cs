@@ -1,25 +1,26 @@
 using UnityEngine;
 
 /// <summary>
-/// Controla o comportamento individual de cada moeda no jogo.
+/// Controla a coleta de moedas e dispara o efeito sonoro no AudioManager.
 /// </summary>
 [RequireComponent(typeof(CircleCollider2D))]
 public class Coin : MonoBehaviour
 {
-    [Header("Configurações da Moeda")]
-    [Tooltip("Quantidade de moedas que este item concede ao ser coletado.")]
+    [Header("Configuracoes da Moeda")]
+    [Tooltip("Quantidade de moedas concedida ao coletar.")]
     [SerializeField] private int coinValue = 1;
 
+    [Tooltip("Efeito sonoro tocado ao coletar a moeda.")]
+    [SerializeField] private AudioClip coinCollectSFX;
+
     [Header("Tag do Jogador")]
-    [Tooltip("Tag atribuída ao GameObject do jogador para confirmar a colisão.")]
+    [Tooltip("Tag atribuida ao jogador.")]
     [SerializeField] private string playerTag = "Player";
 
     private void OnEnable()
     {
-        // Garante que a moeda volte a ficar visível e colidível sempre que o Chunk for reativado pelo Object Pooling
+        // Reativa a colisao e o visual ao sair do pool
         GetComponent<Collider2D>().enabled = true;
-        
-        // Ativa os componentes visuais caso tenham sido ocultados
         SpriteRenderer sprite = GetComponent<SpriteRenderer>();
         if (sprite != null)
         {
@@ -29,25 +30,27 @@ public class Coin : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        // Verifica se quem entrou em contato com a moeda foi o jogador
         if (collision.CompareTag(playerTag))
         {
             CollectCoin();
         }
     }
 
-    /// <summary>
-    /// Envia o valor da moeda para o ScoreManager e desativa o objeto para reaproveitamento.
-    /// </summary>
     private void CollectCoin()
     {
-        // Notifica o gerenciador de pontos
+        // 1. Notifica o gerenciador de pontuacao
         if (ScoreManager.Instance != null)
         {
             ScoreManager.Instance.AddCoins(coinValue);
         }
 
-        // Desativa a moeda em vez de usar Destroy, preservando a memória para o Object Pooling
+        // 2. Dispara o efeito sonoro via AudioManager
+        if (AudioManager.Instance != null && coinCollectSFX != null)
+        {
+            AudioManager.Instance.PlaySFX(coinCollectSFX);
+        }
+
+        // 3. Desativa o objeto para reaproveitamento no pool
         gameObject.SetActive(false);
     }
 }

@@ -1,9 +1,10 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI; // Necessario para interagir com Sliders
 using TMPro;
 
 /// <summary>
-/// Controla o fluxo de telas, exibe dados salvos e gerencia os botoes de upgrade no Menu Inicial.
+/// Controla o fluxo de telas, exibe dados salvos, gerencia upgrades e o painel de configuracoes.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -13,6 +14,14 @@ public class GameManager : MonoBehaviour
     [SerializeField] private GameObject startMenuPanel;
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private GameObject inGameHUD;
+    [Tooltip("Painel de Configuracoes de Som")]
+    [SerializeField] private GameObject settingsPanel;
+
+    [Header("Configuracoes de Som (UI)")]
+    [Tooltip("Slider responsavel pelo volume da Musica")]
+    [SerializeField] private Slider musicVolumeSlider;
+    [Tooltip("Slider responsavel pelo volume dos Efeitos Sonoros")]
+    [SerializeField] private Slider sfxVolumeSlider;
 
     [Header("Textos do Menu Inicial")]
     [SerializeField] private TextMeshProUGUI startMenuTotalCoinsText;
@@ -26,6 +35,9 @@ public class GameManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI finalDistanceText;
     [SerializeField] private TextMeshProUGUI finalHighScoreText;
     [SerializeField] private TextMeshProUGUI finalEnemiesText;
+
+    [Header("Referência do Jogador")]
+    [SerializeField] private PlayerController playerController;
 
     private bool isGameStarted = false;
     private bool isGameOver = false;
@@ -49,6 +61,7 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         SetupStartMenu();
+        SetupAudioSliders();
     }
 
     private void SetupStartMenu()
@@ -62,7 +75,73 @@ public class GameManager : MonoBehaviour
         if (startMenuPanel != null) startMenuPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         if (inGameHUD != null) inGameHUD.SetActive(false);
+        if (settingsPanel != null) settingsPanel.SetActive(false);
     }
+
+    /// <summary>
+    /// Inicializa a posicao dos Sliders com base nos volumes salvos no AudioManager.
+    /// </summary>
+    private void SetupAudioSliders()
+    {
+        if (AudioManager.Instance != null)
+        {
+            if (musicVolumeSlider != null)
+            {
+                musicVolumeSlider.value = AudioManager.Instance.MusicVolume;
+                musicVolumeSlider.onValueChanged.AddListener(OnMusicSliderChanged);
+            }
+
+            if (sfxVolumeSlider != null)
+            {
+                sfxVolumeSlider.value = AudioManager.Instance.SFXVolume;
+                sfxVolumeSlider.onValueChanged.AddListener(OnSFXSliderChanged);
+            }
+        }
+    }
+
+    #region CONTROLE DE TELAS & CONFIGURACOES
+
+    /// <summary>
+    /// Abre o painel de configuracoes e oculta o menu principal.
+    /// </summary>
+    public void OpenSettings()
+    {
+        if (settingsPanel != null) settingsPanel.SetActive(true);
+        if (startMenuPanel != null) startMenuPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Fecha o painel de configuracoes e retorna ao menu principal.
+    /// </summary>
+    public void CloseSettings()
+    {
+        if (settingsPanel != null) settingsPanel.SetActive(false);
+        if (startMenuPanel != null) startMenuPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Callback disparado quando o jogador move o Slider de Musica.
+    /// </summary>
+    public void OnMusicSliderChanged(float value)
+    {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.SetMusicVolume(value);
+        }
+    }
+
+    /// <summary>
+    /// Callback disparado quando o jogador move o Slider de SFX.
+    /// </summary>
+    public void OnSFXSliderChanged(float value)
+    {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.SetSFXVolume(value);
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// Atualiza todos os textos do menu inicial (moedas, vida e dano).
@@ -88,9 +167,6 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Metodo chamado pelo botao de upgrade de Vida na UI.
-    /// </summary>
     public void BuyHealthUpgrade()
     {
         if (UpgradeManager.Instance != null && UpgradeManager.Instance.TryUpgradeHealth())
@@ -99,9 +175,6 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Metodo chamado pelo botao de upgrade de Dano na UI.
-    /// </summary>
     public void BuyDamageUpgrade()
     {
         if (UpgradeManager.Instance != null && UpgradeManager.Instance.TryUpgradeDamage())
@@ -115,13 +188,30 @@ public class GameManager : MonoBehaviour
         isGameStarted = true;
         Time.timeScale = 1f;
 
+        // Garante que o jogador inicia com os upgrades mais recentes comprados no menu
+        if (playerController != null)
+        {
+            playerController.ApplyUpgrades();
+        }
+        else
+        {
+            // Tenta localizar automaticamente caso não tenha sido arrastado no Inspector
+            PlayerController foundPlayer = FindFirstObjectByType<PlayerController>();
+            if (foundPlayer != null)
+            {
+                foundPlayer.ApplyUpgrades();
+            }
+        }
+
         if (startMenuPanel != null) startMenuPanel.SetActive(false);
+        if (settingsPanel != null) settingsPanel.SetActive(false);
         if (inGameHUD != null) inGameHUD.SetActive(true);
     }
 
     public void GameOver()
     {
         if (isGameOver) return;
+
         isGameOver = true;
 
         if (ScoreManager.Instance != null)
@@ -131,7 +221,6 @@ public class GameManager : MonoBehaviour
         }
 
         UpdateGameOverUI();
-
         Time.timeScale = 0f;
 
         if (inGameHUD != null) inGameHUD.SetActive(false);

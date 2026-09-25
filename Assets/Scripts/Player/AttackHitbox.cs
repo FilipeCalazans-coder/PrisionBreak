@@ -1,15 +1,15 @@
 using UnityEngine;
 
 /// <summary>
-/// Aplica dano a inimigos considerando o nivel de dano do UpgradeManager
-/// e dispara um tremor leve na câmara ao conectar o golpe.
+/// Aplica dano ao inimigo e aciona a animacao de soco caso o golpe seja fatal.
 /// </summary>
 public class AttackHitbox : MonoBehaviour
 {
-    [Header("Configurações do Golpe")]
-    [Tooltip("Dano padrão caso o UpgradeManager não esteja ativo.")]
+    [Header("Configuracoes do Golpe")]
+    [Tooltip("Dano padrao caso o UpgradeManager nao esteja ativo.")]
     [SerializeField] private int fallbackDamage = 1;
-    [Tooltip("Tag obrigatória do alvo para receber o dano.")]
+
+    [Tooltip("Tag obrigatoria do alvo para receber o dano.")]
     [SerializeField] private string enemyTag = "Enemy";
 
     private void OnTriggerEnter2D(Collider2D other)
@@ -20,9 +20,11 @@ public class AttackHitbox : MonoBehaviour
         if (enemyHealth != null)
         {
             int finalDamage = (UpgradeManager.Instance != null) ? UpgradeManager.Instance.CurrentDamage : fallbackDamage;
-            enemyHealth.TakeDamage(finalDamage);
 
-            // Dispara um tremor curto e leve para dar peso ao soco!
+            // Passa o dano informando que a origem e um Soco (DeathType.Punch)
+            enemyHealth.TakeDamage(finalDamage, DeathType.Punch);
+
+            // Dispara tremor na tela
             if (ScreenDamageFX.Instance != null)
             {
                 ScreenDamageFX.Instance.TriggerShake(0.12f, 0.15f);

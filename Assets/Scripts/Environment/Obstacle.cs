@@ -1,7 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Gerencia a colisao entre o jogador e obstaculos/inimigos.
+/// Gerencia a colisao entre o jogador e obstaculos/inimigos,
+/// direcionando o dano ou ativando a derrota com deformacao por Stomp.
 /// </summary>
 public class Obstacle : MonoBehaviour
 {
@@ -34,39 +35,43 @@ public class Obstacle : MonoBehaviour
     {
         PlayerController player = playerObj.GetComponent<PlayerController>();
         Rigidbody2D playerRb = playerObj.GetComponent<Rigidbody2D>();
+
         if (player == null) return;
 
-        // 1. Caso: Ground Pound
+        // 1. Caso: Ground Pound do Jogador
         if (player.IsGroundPounding)
         {
             player.TriggerGroundPoundImpact();
-            DefeatObstacle(player);
+            DefeatObstacle(player, DeathType.Stomp);
             return;
         }
 
-        // 2. Caso: Pisar na cabeca (Stomp)
+        // 2. Caso: Pisar na cabeca (Stomp comum)
         if (canBeStomped)
         {
             bool isFalling = playerRb != null && playerRb.linearVelocity.y < 0.1f;
             bool isAbove = playerObj.transform.position.y > (transform.position.y + stompThreshold);
+
             if (isFalling && isAbove)
             {
-                DefeatObstacle(player);
+                DefeatObstacle(player, DeathType.Stomp);
                 return;
             }
         }
 
-        // 3. Caso: Dano frontal/lateral
+        // 3. Caso: Dano frontal/lateral sofrido pelo jogador
         player.TakeDamage(damageToPlayer);
     }
 
-    private void DefeatObstacle(PlayerController player)
+    private void DefeatObstacle(PlayerController player, DeathType deathType)
     {
         player.Bounce();
+
         Health health = GetComponent<Health>();
         if (health != null)
         {
-            health.TakeDamage(999);
+            // Aplica dano letal acionando a deformacao especifica de pisao
+            health.TakeDamage(999, deathType);
         }
         else
         {

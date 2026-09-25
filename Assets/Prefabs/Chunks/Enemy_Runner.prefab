@@ -153,7 +153,7 @@ CapsuleCollider2D:
   m_CallbackLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
@@ -188,6 +188,7 @@ MonoBehaviour:
   playerTag: Player
   canBeStomped: 1
   stompThreshold: 0.2
+  damageToPlayer: 1
 --- !u!114 &4462576116733441253
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -201,3 +202,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Health
   maxHealth: 1
+  deathParticlesPrefab: {fileID: 6218377091470541125, guid: 4ab9815a82d51e149bb561e988b59e5a, type: 3}
+  deathDuration: 0.12
+  punchSquashScale: {x: 0.5, y: 1.8, z: 1}
+  stompSquashScale: {x: 1.8, y: 0.3, z: 1}

@@ -3,36 +3,36 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
+using UnityEngine.EventSystems;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 /// <summary>
-/// Controla movimentacao, fisica cinematica, combate com upgrades de dano
-/// e sistema de pontos de vida com invulnerabilidade temporaria.
+/// Controla movimentacao, fisica cinematica, combate e sons de acao do jogador.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(CapsuleCollider2D))]
 public class PlayerController : MonoBehaviour
 {
-    [Header("Configurações de Velocidade Progressiva")]
+    [Header("Configuracoes de Velocidade Progressiva")]
     [SerializeField] private float initialRunSpeed = 4f;
     [SerializeField] private float maxRunSpeed = 12f;
     [SerializeField] private float speedIncreaseRate = 0.05f;
 
-    [Header("Configurações de Salto Independente")]
+    [Header("Configuracoes de Salto Independente")]
     [SerializeField] private float jumpHeight = 3.5f;
     [SerializeField] private float timeToJumpApex = 0.3f;
     [SerializeField] private float fallMultiplier = 2.5f;
 
-    [Header("Configurações de Quique Cinemático (Bounce)")]
+    [Header("Configuracoes de Quique Cinematico (Bounce)")]
     [SerializeField] private float bounceHeight = 3.5f;
 
     [Header("Buffer de Entrada")]
     [SerializeField] private float jumpBufferDuration = 0.15f;
 
-    [Header("Configurações de Ground Pound")]
+    [Header("Configuracoes de Ground Pound")]
     [SerializeField] private float groundPoundForce = 25f;
 
-    [Header("Configurações de Wall Jump")]
+    [Header("Configuracoes de Wall Jump")]
     [SerializeField] private Transform wallCheck;
     [SerializeField] private float wallCheckRadius = 0.2f;
     [SerializeField] private LayerMask wallLayer;
@@ -40,24 +40,29 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Vector2 wallJumpForce = new Vector2(-4f, 11f);
     [SerializeField] private float wallJumpDuration = 0.25f;
 
-    [Header("Configurações de Ataque e Combo")]
+    [Header("Configuracoes de Ataque e Combo")]
     [SerializeField] private GameObject attackHitboxObject;
     [SerializeField] private float attackStepDuration = 0.25f;
     [SerializeField] private float comboWindowGraceTime = 0.15f;
     [SerializeField] private bool canAttackInAir = true;
 
-    [Header("Configurações de Slide & Dash")]
+    [Header("Configuracoes de Slide & Dash")]
     [SerializeField] private float slideDuration = 0.8f;
     [SerializeField] private float dashBonusSpeed = 5f;
 
-    [Header("Configurações de Invulnerabilidade ao Tomar Dano")]
-    [Tooltip("Tempo em segundos que o jogador fica invulneravel apos tomar um golpe.")]
+    [Header("Efeitos Sonoros do Jogador (SFX)")]
+    [Tooltip("Som executado ao desferir um soco (toca na acao do golpe).")]
+    [SerializeField] private AudioClip punchSFX;
+    [Tooltip("Som executado durante o slide (termina junto com a duracao do slide).")]
+    [SerializeField] private AudioClip slideSFX;
+
+    [Header("Configuracoes de Invulnerabilidade ao Tomar Dano")]
     [SerializeField] private float invulnerabilityDuration = 1.2f;
 
     [Header("Sensibilidade de Toque")]
     [SerializeField] private float minSwipeDistance = 15f;
 
-    [Header("Verificação de Chão")]
+    [Header("Verificacao de Chao")]
     [SerializeField] private Transform groundCheck;
     [SerializeField] private float groundCheckRadius = 0.2f;
     [SerializeField] private LayerMask groundLayer;
@@ -67,9 +72,11 @@ public class PlayerController : MonoBehaviour
     private CapsuleCollider2D capsuleCollider;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
+    private AudioSource slideAudioSource; // AudioSource dedicado para permitir corte exato no fim do slide
 
     // Vida e Invulnerabilidade
     private int currentHealth;
+    private int maxHealth;
     private bool isInvulnerable = false;
 
     // Variaveis de fisica
@@ -111,10 +118,10 @@ public class PlayerController : MonoBehaviour
 
     private Vector2 originalColliderSize;
     private Vector2 originalColliderOffset;
-
     private Vector2 startTouchPos;
     private bool isTouching;
     private bool gestureConsumed;
+    private bool touchBeganOverUI;
 
     private void Awake()
     {
@@ -122,6 +129,11 @@ public class PlayerController : MonoBehaviour
         capsuleCollider = GetComponent<CapsuleCollider2D>();
         animator = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+
+        // Configura o AudioSource dedicado para o Slide
+        slideAudioSource = gameObject.AddComponent<AudioSource>();
+        slideAudioSource.playOnAwake = false;
+        slideAudioSource.loop = false;
 
         if (capsuleCollider != null)
         {
@@ -141,15 +153,20 @@ public class PlayerController : MonoBehaviour
         CacheAnimatorParameters();
     }
 
-    private int maxHealth; // Adiciona esta variável para registrar a vida total
-
     private void Start()
     {
-        // Define a vida máxima com base nas melhorias do UpgradeManager ou 1
+        // Aplica os atributos atualizados do UpgradeManager no início
+        ApplyUpgrades();
+    }
+
+    /// <summary>
+    /// Recarrega a vida máxima e restaura os pontos de vida com base nos upgrades comprados.
+    /// </summary>
+    public void ApplyUpgrades()
+    {
         maxHealth = (UpgradeManager.Instance != null) ? UpgradeManager.Instance.CurrentHealth : 1;
         currentHealth = maxHealth;
 
-        // Atualiza a barra de vida inicial na HUD
         if (HealthBarUI.Instance != null)
         {
             HealthBarUI.Instance.UpdateHealth(currentHealth, maxHealth);
@@ -248,12 +265,6 @@ public class PlayerController : MonoBehaviour
         isWallSliding = isTouchingWall && !isGrounded && rb.linearVelocity.y < 0.1f && !isGroundPounding;
     }
 
-    /// <summary>
-    /// Aplica dano ao jogador e verifica Game Over ou ativa invulnerabilidade.
-    /// </summary>
-    /// <summary>
-    /// Aplica dano ao jogador, aciona o flash vermelho, treme a câmara e atualiza a barra.
-    /// </summary>
     public void TakeDamage(int damageAmount)
     {
         if (isInvulnerable) return;
@@ -261,20 +272,17 @@ public class PlayerController : MonoBehaviour
         currentHealth -= damageAmount;
         Debug.Log($"Jogador tomou dano! Vida restante: {currentHealth}");
 
-        // 1. Atualiza a barra de vida visual
         if (HealthBarUI.Instance != null)
         {
             HealthBarUI.Instance.UpdateHealth(currentHealth, maxHealth);
         }
 
-        // 2. Aciona o tremor forte e o flash vermelho no ecrã
         if (ScreenDamageFX.Instance != null)
         {
-            ScreenDamageFX.Instance.TriggerShake(0.3f, 0.35f); // 0.3 segundos, intensidade 0.35
+            ScreenDamageFX.Instance.TriggerShake(0.3f, 0.35f);
             ScreenDamageFX.Instance.TriggerRedFlash();
         }
 
-        // 3. Avalia derrota ou invulnerabilidade
         if (currentHealth <= 0)
         {
             if (GameManager.Instance != null)
@@ -294,7 +302,6 @@ public class PlayerController : MonoBehaviour
         float elapsed = 0f;
         float flashInterval = 0.1f;
 
-        // Efeito visual de piscar o sprite
         while (elapsed < invulnerabilityDuration)
         {
             if (spriteRenderer != null)
@@ -389,8 +396,25 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    private bool IsPointerOverUI(int touchFingerId = -1)
+    {
+        if (EventSystem.current == null) return false;
+
+        if (touchFingerId >= 0)
+        {
+            return EventSystem.current.IsPointerOverGameObject(touchFingerId);
+        }
+
+        return EventSystem.current.IsPointerOverGameObject();
+    }
+
     private void HandleInputLifecycle()
     {
+        if (GameManager.Instance != null && (!GameManager.Instance.IsGameStarted || GameManager.Instance.IsGameOver))
+        {
+            return;
+        }
+
         if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
         {
             RequestJump();
@@ -402,18 +426,29 @@ public class PlayerController : MonoBehaviour
 
             if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
+                if (IsPointerOverUI(touch.touchId))
+                {
+                    touchBeganOverUI = true;
+                    return;
+                }
+
+                touchBeganOverUI = false;
                 startTouchPos = touch.screenPosition;
                 isTouching = true;
                 gestureConsumed = false;
             }
-            else if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved || touch.phase == UnityEngine.InputSystem.TouchPhase.Stationary)
+            else if (!touchBeganOverUI)
             {
-                CheckInstantGesture(touch.screenPosition);
+                if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved || touch.phase == UnityEngine.InputSystem.TouchPhase.Stationary)
+                {
+                    CheckInstantGesture(touch.screenPosition);
+                }
+                else if (touch.phase == UnityEngine.InputSystem.TouchPhase.Ended || touch.phase == UnityEngine.InputSystem.TouchPhase.Canceled)
+                {
+                    FinalizeTouch(touch.screenPosition);
+                }
             }
-            else if (touch.phase == UnityEngine.InputSystem.TouchPhase.Ended || touch.phase == UnityEngine.InputSystem.TouchPhase.Canceled)
-            {
-                FinalizeTouch(touch.screenPosition);
-            }
+
             return;
         }
 
@@ -421,17 +456,27 @@ public class PlayerController : MonoBehaviour
         {
             if (Mouse.current.leftButton.wasPressedThisFrame)
             {
+                if (IsPointerOverUI())
+                {
+                    touchBeganOverUI = true;
+                    return;
+                }
+
+                touchBeganOverUI = false;
                 startTouchPos = Mouse.current.position.ReadValue();
                 isTouching = true;
                 gestureConsumed = false;
             }
-            else if (Mouse.current.leftButton.isPressed && isTouching)
+            else if (!touchBeganOverUI)
             {
-                CheckInstantGesture(Mouse.current.position.ReadValue());
-            }
-            else if (Mouse.current.leftButton.wasReleasedThisFrame && isTouching)
-            {
-                FinalizeTouch(Mouse.current.position.ReadValue());
+                if (Mouse.current.leftButton.isPressed && isTouching)
+                {
+                    CheckInstantGesture(Mouse.current.position.ReadValue());
+                }
+                else if (Mouse.current.leftButton.wasReleasedThisFrame && isTouching)
+                {
+                    FinalizeTouch(Mouse.current.position.ReadValue());
+                }
             }
         }
     }
@@ -490,11 +535,22 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    private void PlayPunchSound()
+    {
+        if (AudioManager.Instance != null && punchSFX != null)
+        {
+            AudioManager.Instance.PlaySFX(punchSFX);
+        }
+    }
+
     private IEnumerator ComboSequenceRoutine()
     {
         comboStep = 1;
         bufferNextAttack = false;
         canCombo = true;
+
+        // Dispara o som no momento em que o 1º golpe é iniciado
+        PlayPunchSound();
 
         if (animator != null && existingAnimatorParams.Contains(attack1TriggerHash))
         {
@@ -529,6 +585,9 @@ public class PlayerController : MonoBehaviour
             canCombo = false;
             bufferNextAttack = false;
 
+            // Dispara o som no momento em que o 2º golpe é iniciado
+            PlayPunchSound();
+
             if (animator != null && existingAnimatorParams.Contains(attack2TriggerHash))
             {
                 animator.ResetTrigger(attack1TriggerHash);
@@ -560,6 +619,7 @@ public class PlayerController : MonoBehaviour
     private void ExecuteGroundPound()
     {
         if (isGroundPounding) return;
+
         isGroundPounding = true;
 
         if (currentComboCoroutine != null)
@@ -570,8 +630,7 @@ public class PlayerController : MonoBehaviour
 
         if (isSliding)
         {
-            ResetCollider();
-            isSliding = false;
+            StopSlideImmediate();
         }
 
         rb.linearVelocity = new Vector2(currentRunSpeed, -groundPoundForce);
@@ -586,13 +645,35 @@ public class PlayerController : MonoBehaviour
     private IEnumerator SlideRoutine()
     {
         isSliding = true;
+
+        // Inicia o áudio do slide usando o volume do SFX configurado no AudioManager
+        if (slideAudioSource != null && slideSFX != null)
+        {
+            float sfxVol = (AudioManager.Instance != null) ? AudioManager.Instance.SFXVolume : 1f;
+            slideAudioSource.clip = slideSFX;
+            slideAudioSource.volume = sfxVol;
+            slideAudioSource.Play();
+        }
+
         if (capsuleCollider != null)
         {
             capsuleCollider.size = new Vector2(originalColliderSize.x, originalColliderSize.y * 0.5f);
             capsuleCollider.offset = new Vector2(originalColliderOffset.x, originalColliderOffset.y - (originalColliderSize.y * 0.25f));
         }
 
+        // Aguarda exatamente o tempo configurado para o slide
         yield return new WaitForSeconds(slideDuration);
+
+        // Interrompe o som do slide sincronizado com o fim do slide
+        StopSlideImmediate();
+    }
+
+    private void StopSlideImmediate()
+    {
+        if (slideAudioSource != null && slideAudioSource.isPlaying)
+        {
+            slideAudioSource.Stop();
+        }
 
         ResetCollider();
         isSliding = false;
