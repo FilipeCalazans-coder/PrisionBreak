@@ -1,10 +1,10 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI; // Necessario para interagir com Sliders
+using UnityEngine.UI;
 using TMPro;
 
 /// <summary>
-/// Controla o fluxo de telas, exibe dados salvos, gerencia upgrades e o painel de configuracoes.
+/// Controla o fluxo de telas, exibe dados salvos, gerencia upgrades, o painel de configuracoes e o estado de pausa.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -14,6 +14,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] private GameObject startMenuPanel;
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private GameObject inGameHUD;
+    [Tooltip("Painel que aparece quando o jogo é pausado.")]
+    [SerializeField] private GameObject pauseMenuPanel;
     [Tooltip("Painel de Configuracoes de Som")]
     [SerializeField] private GameObject settingsPanel;
 
@@ -41,9 +43,11 @@ public class GameManager : MonoBehaviour
 
     private bool isGameStarted = false;
     private bool isGameOver = false;
+    private bool isPaused = false;
 
     public bool IsGameStarted => isGameStarted;
     public bool IsGameOver => isGameOver;
+    public bool IsPaused => isPaused;
 
     private void Awake()
     {
@@ -68,6 +72,7 @@ public class GameManager : MonoBehaviour
     {
         isGameStarted = false;
         isGameOver = false;
+        isPaused = false;
         Time.timeScale = 0f;
 
         UpdateStartMenuUI();
@@ -75,6 +80,7 @@ public class GameManager : MonoBehaviour
         if (startMenuPanel != null) startMenuPanel.SetActive(true);
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         if (inGameHUD != null) inGameHUD.SetActive(false);
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
         if (settingsPanel != null) settingsPanel.SetActive(false);
     }
 
@@ -101,51 +107,77 @@ public class GameManager : MonoBehaviour
 
     #region CONTROLE DE TELAS & CONFIGURACOES
 
-    /// <summary>
-    /// Abre o painel de configuracoes e oculta o menu principal.
-    /// </summary>
     public void OpenSettings()
     {
         if (settingsPanel != null) settingsPanel.SetActive(true);
-        if (startMenuPanel != null) startMenuPanel.SetActive(false);
+        
+        // Se estiver no menu principal, oculta o menu. Se estiver pausado, oculta o menu de pausa.
+        if (!isGameStarted && startMenuPanel != null) startMenuPanel.SetActive(false);
+        else if (isPaused && pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
     }
 
-    /// <summary>
-    /// Fecha o painel de configuracoes e retorna ao menu principal.
-    /// </summary>
     public void CloseSettings()
     {
         if (settingsPanel != null) settingsPanel.SetActive(false);
-        if (startMenuPanel != null) startMenuPanel.SetActive(true);
+        
+        // Retorna para a tela correta dependendo do estado do jogo
+        if (!isGameStarted && startMenuPanel != null) startMenuPanel.SetActive(true);
+        else if (isPaused && pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
     }
 
-    /// <summary>
-    /// Callback disparado quando o jogador move o Slider de Musica.
-    /// </summary>
     public void OnMusicSliderChanged(float value)
     {
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.SetMusicVolume(value);
-        }
+        if (AudioManager.Instance != null) AudioManager.Instance.SetMusicVolume(value);
     }
 
-    /// <summary>
-    /// Callback disparado quando o jogador move o Slider de SFX.
-    /// </summary>
     public void OnSFXSliderChanged(float value)
     {
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.SetSFXVolume(value);
-        }
+        if (AudioManager.Instance != null) AudioManager.Instance.SetSFXVolume(value);
     }
 
     #endregion
 
+    #region SISTEMA DE PAUSA
+
     /// <summary>
-    /// Atualiza todos os textos do menu inicial (moedas, vida e dano).
+    /// Pausa o jogo congelando o TimeScale e exibindo o painel de pausa.
     /// </summary>
+    public void PauseGame()
+    {
+        if (!isGameStarted || isGameOver || isPaused) return;
+
+        isPaused = true;
+        Time.timeScale = 0f;
+        
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(true);
+    }
+
+    /// <summary>
+    /// Retoma o jogo descongelando o TimeScale e ocultando o painel de pausa.
+    /// </summary>
+    public void ResumeGame()
+    {
+        if (!isGameStarted || isGameOver || !isPaused) return;
+
+        isPaused = false;
+        Time.timeScale = 1f;
+
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Alterna entre pausado e despausado. Útil para atalhos de teclado (ex: tecla ESC).
+    /// </summary>
+    public void TogglePause()
+    {
+        if (isPaused) ResumeGame();
+        else PauseGame();
+    }
+
+    #endregion
+
+    #region UPGRADES E FLUXO DE JOGO
+
     public void UpdateStartMenuUI()
     {
         if (ScoreManager.Instance != null && startMenuTotalCoinsText != null)
@@ -186,25 +218,22 @@ public class GameManager : MonoBehaviour
     public void StartGame()
     {
         isGameStarted = true;
+        isPaused = false;
         Time.timeScale = 1f;
 
-        // Garante que o jogador inicia com os upgrades mais recentes comprados no menu
         if (playerController != null)
         {
             playerController.ApplyUpgrades();
         }
         else
         {
-            // Tenta localizar automaticamente caso não tenha sido arrastado no Inspector
             PlayerController foundPlayer = FindFirstObjectByType<PlayerController>();
-            if (foundPlayer != null)
-            {
-                foundPlayer.ApplyUpgrades();
-            }
+            if (foundPlayer != null) foundPlayer.ApplyUpgrades();
         }
 
         if (startMenuPanel != null) startMenuPanel.SetActive(false);
         if (settingsPanel != null) settingsPanel.SetActive(false);
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
         if (inGameHUD != null) inGameHUD.SetActive(true);
     }
 
@@ -213,6 +242,7 @@ public class GameManager : MonoBehaviour
         if (isGameOver) return;
 
         isGameOver = true;
+        isPaused = false;
 
         if (ScoreManager.Instance != null)
         {
@@ -224,6 +254,7 @@ public class GameManager : MonoBehaviour
         Time.timeScale = 0f;
 
         if (inGameHUD != null) inGameHUD.SetActive(false);
+        if (pauseMenuPanel != null) pauseMenuPanel.SetActive(false);
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
     }
 
@@ -231,17 +262,10 @@ public class GameManager : MonoBehaviour
     {
         if (ScoreManager.Instance == null) return;
 
-        if (finalCoinsText != null)
-            finalCoinsText.text = $"Moedas: {ScoreManager.Instance.CurrentCoins}";
-
-        if (finalDistanceText != null)
-            finalDistanceText.text = $"Distancia: {ScoreManager.Instance.CurrentDistance} m";
-
-        if (finalHighScoreText != null)
-            finalHighScoreText.text = $"Recorde: {ScoreManager.Instance.HighScoreDistance} m";
-
-        if (finalEnemiesText != null)
-            finalEnemiesText.text = $"Inimigos Derrotados: {ScoreManager.Instance.DefeatedEnemies}";
+        if (finalCoinsText != null) finalCoinsText.text = $"Moedas: {ScoreManager.Instance.CurrentCoins}";
+        if (finalDistanceText != null) finalDistanceText.text = $"Distancia: {ScoreManager.Instance.CurrentDistance} m";
+        if (finalHighScoreText != null) finalHighScoreText.text = $"Recorde: {ScoreManager.Instance.HighScoreDistance} m";
+        if (finalEnemiesText != null) finalEnemiesText.text = $"Inimigos Derrotados: {ScoreManager.Instance.DefeatedEnemies}";
     }
 
     public void RestartGame()
@@ -250,4 +274,6 @@ public class GameManager : MonoBehaviour
         int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
         SceneManager.LoadScene(currentSceneIndex);
     }
+
+    #endregion
 }

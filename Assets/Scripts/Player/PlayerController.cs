@@ -269,6 +269,34 @@ public class PlayerController : MonoBehaviour
     {
         if (isInvulnerable) return;
 
+        // 1. Verifica a mecanica de perseguicao estilo Subway Surfers
+        if (PursuerGuard.Instance != null)
+        {
+            if (PursuerGuard.Instance.IsPursuing)
+            {
+                // Se o guarda ja estava na cola e o jogador bateu de novo: Capturado!
+                PursuerGuard.Instance.CatchPlayer();
+                currentHealth = 0;
+
+                if (HealthBarUI.Instance != null)
+                {
+                    HealthBarUI.Instance.UpdateHealth(currentHealth, maxHealth);
+                }
+
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.GameOver();
+                }
+                return;
+            }
+            else
+            {
+                // Primeiro tropeco: o guarda aparece imediatamente atras do jogador
+                PursuerGuard.Instance.TriggerPursuit();
+            }
+        }
+
+        // 2. Aplica o dano normal a barra de vida
         currentHealth -= damageAmount;
         Debug.Log($"Jogador tomou dano! Vida restante: {currentHealth}");
 
@@ -283,6 +311,7 @@ public class PlayerController : MonoBehaviour
             ScreenDamageFX.Instance.TriggerRedFlash();
         }
 
+        // 3. Checa derrota por esgotamento de vida
         if (currentHealth <= 0)
         {
             if (GameManager.Instance != null)

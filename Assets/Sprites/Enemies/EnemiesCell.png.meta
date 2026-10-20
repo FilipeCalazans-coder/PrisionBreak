@@ -253,7 +253,7 @@ TextureImporter:
         width: 13
         height: 14
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
@@ -262,6 +262,116 @@ TextureImporter:
       bones: []
       spriteID: 9965caa59d723a145aece7e7f54e3033
       internalID: -1189939436
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: EnemiesCell_7
+      rect:
+        serializedVersion: 2
+        x: 52
+        y: 156
+        width: 17
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7999546444e52814dafb169a76a1c975
+      internalID: -1902698415
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: EnemiesCell_8
+      rect:
+        serializedVersion: 2
+        x: 52
+        y: 139
+        width: 17
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 3497962f7cc88cb4b995e9bc483f258f
+      internalID: 1684787451
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: EnemiesCell_9
+      rect:
+        serializedVersion: 2
+        x: 52
+        y: 122
+        width: 17
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: a49ed73e04c2f0541afd6db8ee8a393c
+      internalID: 854933137
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: EnemiesCell_10
+      rect:
+        serializedVersion: 2
+        x: 52
+        y: 105
+        width: 17
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 4ba1d0e53b3d400458e6e6fef9ed57be
+      internalID: 249448777
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: EnemiesCell_11
+      rect:
+        serializedVersion: 2
+        x: 52
+        y: 88
+        width: 17
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 72fa5abd6acde614e8e423f1ac2df71c
+      internalID: -1516994943
       vertices: []
       indices: 
       edges: []
@@ -282,11 +392,16 @@ TextureImporter:
     nameFileIdTable:
       EnemiesCell_0: 6098983225158399557
       EnemiesCell_1: 1350067009
+      EnemiesCell_10: 249448777
+      EnemiesCell_11: -1516994943
       EnemiesCell_2: 1081567745
       EnemiesCell_3: 1808589113
       EnemiesCell_4: -1080756987
       EnemiesCell_5: -1189939436
       EnemiesCell_6: 2029675584
+      EnemiesCell_7: -1902698415
+      EnemiesCell_8: 1684787451
+      EnemiesCell_9: 854933137
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
