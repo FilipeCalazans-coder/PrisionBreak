@@ -609,7 +609,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5464161483979905303, guid: ed367d5556efdd843996f8a1826ab76a, type: 3}
       propertyPath: stuckTimeThreshold
-      value: 0
+      value: 0.2
       objectReference: {fileID: 0}
     - target: {fileID: 5953247446717475048, guid: ed367d5556efdd843996f8a1826ab76a, type: 3}
       propertyPath: m_LocalPosition.x

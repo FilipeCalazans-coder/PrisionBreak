@@ -83,8 +83,8 @@ SpriteRenderer:
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
   m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
+  m_SortingLayerID: 1060672363
+  m_SortingLayer: 1
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_Sprite: {fileID: -5646562683181490552, guid: 069655e5337c5c64bbe056954c6abb48, type: 3}
@@ -209,8 +209,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Obstacle
   playerTag: Player
-  canBeStomped: 1
-  stompThreshold: 0.2
   damageToPlayer: 2
 --- !u!114 &2044141722747424637
 MonoBehaviour:
